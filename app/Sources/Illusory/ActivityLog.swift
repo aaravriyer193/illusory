@@ -15,9 +15,12 @@ final class ActivityLog {
     }
 
     private var events: [Event] = []
-    private let limit = 24
+    private let limit = 40
     private var lastChangeCount = NSPasteboard.general.changeCount
     private var clipboardTimer: Timer?
+    private var windowTimer: Timer?
+    private var lastWindowTitle: String?
+    private var lastApp: String?
 
     func start() {
         NSWorkspace.shared.notificationCenter.addObserver(
@@ -32,6 +35,26 @@ final class ActivityLog {
         clipboardTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             Task { @MainActor in ActivityLog.shared.pollClipboard() }
         }
+
+        // Window titles are how you see navigation and document switches — moving
+        // between files in an editor never fires an app-activation notification.
+        windowTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
+            Task { @MainActor in ActivityLog.shared.pollWindow() }
+        }
+    }
+
+    private func pollWindow() {
+        guard AX.isTrusted,
+              let front = NSWorkspace.shared.frontmostApplication,
+              let name = front.localizedName else { return }
+        let axApp = AXUIElementCreateApplication(front.processIdentifier)
+        guard let window = AX.element(axApp, kAXFocusedWindowAttribute as String),
+              let title = AX.string(window, kAXTitleAttribute as String) else { return }
+
+        guard title != lastWindowTitle || name != lastApp else { return }
+        lastWindowTitle = title
+        lastApp = name
+        record("viewing \"\(title)\" in \(name)")
     }
 
     private func pollClipboard() {
@@ -39,7 +62,14 @@ final class ActivityLog {
         guard current != lastChangeCount else { return }
         lastChangeCount = current
         guard let text = NSPasteboard.general.string(forType: .string) else { return }
-        record("copied: \(text.prefix(120).replacingOccurrences(of: "\n", with: " "))")
+        let flat = text.prefix(160).replacingOccurrences(of: "\n", with: " ")
+        record("copied: \(flat)")
+
+        // File copies are a far stronger signal than text, so name them explicitly.
+        if let urls = NSPasteboard.general.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] {
+            let files = urls.filter(\.isFileURL).map(\.lastPathComponent)
+            if !files.isEmpty { record("copied files: \(files.joined(separator: ", "))") }
+        }
     }
 
     func record(_ text: String) {

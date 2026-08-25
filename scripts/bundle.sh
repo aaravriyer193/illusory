@@ -32,6 +32,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>LSMinimumSystemVersion</key>    <string>14.0</string>
     <!-- Agent app: menu bar only, no dock icon, no window on launch. -->
     <key>LSUIElement</key>               <true/>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Illusory reads the folder and files you have selected in Finder so it can finish what you started.</string>
 </dict>
 </plist>
 PLIST

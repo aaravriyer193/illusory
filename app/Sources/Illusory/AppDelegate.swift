@@ -25,6 +25,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.install()
         ActivityLog.shared.start()
 
+        // Most of the context — window titles, focused field, selected text — needs
+        // Accessibility. Ask once at launch rather than failing quietly per gesture.
+        if !AX.isTrusted {
+            Log.info("accessibility: not trusted, prompting")
+            AX.requestTrust()
+        }
+
         hotKey = HotKey(keyCode: UInt32(kVK_Space), modifiers: UInt32(optionKey))
         hotKey?.onPress = { Task { @MainActor in self.keyDown() } }
         hotKey?.onRelease = { Task { @MainActor in self.keyUp() } }
@@ -89,8 +96,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             do {
                 let proposal = try await Intent.propose(snapshot)
                 guard self.generation == gen else { return }
-                Log.info("proposed in \(Int(Date().timeIntervalSince(started) * 1000))ms: \(proposal)")
-                self.gesture.caption = proposal
+                let ms = Int(Date().timeIntervalSince(started) * 1000)
+                Log.info("proposed in \(ms)ms [conf \(proposal.confidence), "
+                       + "basis: \(proposal.basis)]: \(proposal.action)")
+                // Below the bar Illusory says nothing rather than inventing a step.
+                self.gesture.caption = proposal.isActionable ? proposal.action : Intent.nothing
             } catch {
                 guard self.generation == gen else { return }
                 Log.info("model error: \(error.localizedDescription)")
