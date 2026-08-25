@@ -142,31 +142,58 @@ extension AX {
         return nil
     }
 
-    /// Walks the frontmost app's window for clickable controls. Depth- and
-    /// count-limited: a Chrome window has thousands of nodes, and the whole point
-    /// is to stay inside the gesture's latency budget.
-    static func clickables(pid: pid_t, limit: Int = 60, maxDepth: Int = 12) -> [UIElement] {
-        guard isTrusted else { return [] }
+    /// Chromium and Electron apps hide their web content from accessibility until
+    /// asked. Without this, a browser exposes only its own chrome — no links, no
+    /// buttons, nothing on the page — which is exactly where clicking matters most.
+    /// Setting it is idempotent and cheap after the first call.
+    static func enableWebContent(pid: pid_t) {
         let app = AXUIElementCreateApplication(pid)
-        guard let window = element(app, kAXFocusedWindowAttribute as String) else { return [] }
+        AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        AXUIElementSetAttributeValue(app, "AXEnhancedUserInterface" as CFString, kCFBooleanTrue)
+    }
+
+    /// Walks the frontmost app for clickable controls.
+    ///
+    /// Depth-first rather than breadth-first on purpose: a browser's chrome sits at
+    /// the top of the tree and would fill the whole budget before the walk ever
+    /// reached the page, so a breadth-first search returns toolbars and no content.
+    static func clickables(pid: pid_t, limit: Int = 140, maxDepth: Int = 45) -> [UIElement] {
+        guard isTrusted else { return [] }
+        enableWebContent(pid: pid)
+
+        let app = AXUIElementCreateApplication(pid)
+        let roots = [element(app, kAXFocusedWindowAttribute as String), app].compactMap { $0 }
+        guard let root = roots.first else { return [] }
 
         var found: [UIElement] = []
-        var queue: [(AXUIElement, Int)] = [(window, 0)]
+        var seen = Set<String>()
+        var stack: [(AXUIElement, Int)] = [(root, 0)]
+        // Hard node budget: some pages have tens of thousands of nodes and the
+        // gesture has a latency ceiling that matters more than completeness.
+        var visited = 0
 
-        while !queue.isEmpty, found.count < limit {
-            let (node, depth) = queue.removeFirst()
+        while let (node, depth) = stack.popLast(), found.count < limit, visited < 6000 {
+            visited += 1
             if depth > maxDepth { continue }
 
             if let role = string(node, kAXRoleAttribute as String),
                clickableRoles.contains(role),
                let frame = rect(node), frame.width > 4, frame.height > 4,
                let label = describe(node) {
-                found.append(UIElement(role: role, label: label, frame: frame))
+                // Web pages repeat labels constantly; keep the first of each.
+                let key = "\(role)|\(label)|\(Int(frame.midX)),\(Int(frame.midY))"
+                if seen.insert(key).inserted {
+                    found.append(UIElement(role: role, label: label, frame: frame))
+                }
             }
 
             if let children = copy(node, kAXChildrenAttribute as String) as? [AXUIElement] {
-                queue.append(contentsOf: children.prefix(40).map { ($0, depth + 1) })
+                stack.append(contentsOf: children.prefix(120).reversed().map { ($0, depth + 1) })
             }
+        }
+        if found.isEmpty {
+            Log.info("ax: no clickable controls found for pid \(pid) — "
+                   + "trusted=\(isTrusted), visited=\(visited)")
         }
         return found
     }

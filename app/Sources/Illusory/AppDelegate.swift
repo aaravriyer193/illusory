@@ -109,7 +109,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                    + " · clipboard=\(snapshot.clipboard != nil)"
                    + " · shot=\(snapshot.screenshot != nil)"
                    + " · history=\(snapshot.history != nil)"
-                   + " · files=\(snapshot.files != nil)")
+                   + " · files=\(snapshot.files != nil)"
+                   + " · controls=\(snapshot.clickables.count)")
             guard self.generation == gen, !Task.isCancelled else { return }
             self.pendingContext = snapshot
 
