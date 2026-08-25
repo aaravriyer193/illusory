@@ -72,7 +72,7 @@ struct ConnectionsView: View {
                 .frame(width: 26, height: 26)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Illusory").font(Theme.heading(16))
-                Text("One key. AI finishes what you started.")
+                Text("Autocomplete for everything that isn't typing.")
                     .font(Theme.body(11)).foregroundStyle(.secondary)
             }
         }

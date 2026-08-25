@@ -3,7 +3,7 @@
 </p>
 
 <h1 align="center">Illusory</h1>
-<p align="center">One key. AI finishes what you started.</p>
+<p align="center">Autocomplete for everything that isn't typing.</p>
 
 ---
 

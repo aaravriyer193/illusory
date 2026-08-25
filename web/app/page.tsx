@@ -36,7 +36,7 @@ export default function Home() {
         </div>
 
         <h1>
-          One key. <em>AI finishes what you started.</em>
+          Autocomplete for <em>everything that isn’t typing.</em>
         </h1>
 
         <p className="lede">

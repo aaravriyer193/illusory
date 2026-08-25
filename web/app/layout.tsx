@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Illusory — One key. AI finishes what you started.",
+  title: "Illusory — Autocomplete for everything that isn't typing.",
   description:
-    "Press one key, anywhere on your Mac. Illusory looks at what you're doing and does the rest.",
+    "Press one key, anywhere on your Mac. Illusory reads what you were already doing and finishes it — files, apps, anything.",
 };
 
 export default function RootLayout({
