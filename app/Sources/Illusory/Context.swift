@@ -60,10 +60,10 @@ struct ContextSnapshot {
     /// Split from `capture()` so the cheap parts are gathered instantly and the
     /// expensive frame grab is optional.
     @MainActor
-    static func full() -> ContextSnapshot {
+    static func full() async -> ContextSnapshot {
         var snapshot = capture()
         snapshot.history = ActivityLog.shared.recent
-        snapshot.screenshot = Screenshot.captureBase64JPEG()
+        snapshot.screenshot = await Screenshot.captureBase64JPEG()
         return snapshot
     }
 

@@ -13,13 +13,22 @@ enum Env {
     }
 
     private static func load() -> [String: String] {
-        var dir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-        for _ in 0..<4 {
-            let candidate = dir.appendingPathComponent(".env")
-            if let text = try? String(contentsOf: candidate, encoding: .utf8) {
-                return parse(text)
+        // Launched from a bundle the working directory is "/", so the bundle's own
+        // location has to be searched too.
+        let roots = [
+            URL(fileURLWithPath: FileManager.default.currentDirectoryPath),
+            Bundle.main.bundleURL,
+            FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".illusory"),
+        ]
+        for root in roots {
+            var dir = root
+            for _ in 0..<5 {
+                let candidate = dir.appendingPathComponent(".env")
+                if let text = try? String(contentsOf: candidate, encoding: .utf8) {
+                    return parse(text)
+                }
+                dir.deleteLastPathComponent()
             }
-            dir.deleteLastPathComponent()
         }
         return [:]
     }

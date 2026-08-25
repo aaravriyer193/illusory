@@ -75,19 +75,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let snapshot = ContextSnapshot.full()
-        Log.info("context: \(snapshot.appName) · selection=\(snapshot.selection != nil)"
-               + " · clipboard=\(snapshot.clipboard != nil) · shot=\(snapshot.screenshot != nil)"
-               + " · history=\(snapshot.history != nil)")
         showOverlay(caption: "Thinking…")
 
         Task { @MainActor in
             let started = Date()
+            let snapshot = await ContextSnapshot.full()
+            Log.info("context: \(snapshot.appName) · selection=\(snapshot.selection != nil)"
+                   + " · clipboard=\(snapshot.clipboard != nil)"
+                   + " · shot=\(snapshot.screenshot != nil)"
+                   + " · history=\(snapshot.history != nil)")
+            guard self.generation == gen else { return }
+
             do {
                 let proposal = try await Intent.propose(snapshot)
                 guard self.generation == gen else { return }
-                let elapsed = Int(Date().timeIntervalSince(started) * 1000)
-                Log.info("proposed in \(elapsed)ms: \(proposal)")
+                Log.info("proposed in \(Int(Date().timeIntervalSince(started) * 1000))ms: \(proposal)")
                 self.gesture.caption = proposal
             } catch {
                 guard self.generation == gen else { return }

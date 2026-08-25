@@ -3,3 +3,4 @@
 .DS_Store
 assets/_contact.html
 *.xcuserdatad
+build/

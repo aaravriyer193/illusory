@@ -1,49 +1,57 @@
 import AppKit
-import CoreGraphics
+import ScreenCaptureKit
 
 /// A downscaled JPEG of the screen at the moment the key was pressed.
 ///
-/// Full-resolution retina frames are enormous and would blow both the token budget
-/// and the one-second rule, so this scales down hard before encoding. Captured only
-/// on a keypress, held only for the length of one request, never written to disk.
+/// Uses ScreenCaptureKit: `CGWindowListCreateImage` is deprecated and no longer a
+/// reliable path on current macOS. Note that Screen Recording can only be granted
+/// to a real bundle — a bare executable has no identity for TCC to attach the
+/// permission to, so this silently fails unless Illusory runs as Illusory.app.
+///
+/// Full retina frames are enormous and would blow both the token budget and the
+/// one-second rule, so this scales down before encoding. Captured only on a
+/// keypress, held only for one request, never written to disk.
 enum Screenshot {
     static var hasPermission: Bool { CGPreflightScreenCaptureAccess() }
 
-    @discardableResult
-    static func requestPermission() -> Bool { CGRequestScreenCaptureAccess() }
+    static func captureBase64JPEG(maxWidth: CGFloat = 1200,
+                                  quality: CGFloat = 0.45) async -> String? {
+        do {
+            let content = try await SCShareableContent.excludingDesktopWindows(
+                false, onScreenWindowsOnly: true)
+            guard let display = content.displays.first else {
+                Log.info("screenshot: no display")
+                return nil
+            }
 
-    static func captureBase64JPEG(maxWidth: CGFloat = 1200, quality: CGFloat = 0.45) -> String? {
-        guard hasPermission else {
-            Log.info("screenshot: no Screen Recording permission — requesting")
-            requestPermission()
+            // Exclude Illusory's own overlay, or the model sees our sweep animation
+            // rather than what the user was actually looking at.
+            let ours = content.applications.filter {
+                $0.bundleIdentifier == Bundle.main.bundleIdentifier
+            }
+            let filter = SCContentFilter(display: display,
+                                         excludingApplications: ours,
+                                         exceptingWindows: [])
+
+            let scale = min(1, maxWidth / CGFloat(display.width))
+            let config = SCStreamConfiguration()
+            config.width = Int(CGFloat(display.width) * scale)
+            config.height = Int(CGFloat(display.height) * scale)
+            config.showsCursor = false
+
+            let image = try await SCScreenshotManager.captureImage(contentFilter: filter,
+                                                                   configuration: config)
+            let rep = NSBitmapImageRep(cgImage: image)
+            guard let data = rep.representation(using: .jpeg,
+                                                properties: [.compressionFactor: quality]) else {
+                return nil
+            }
+            Log.info("screenshot: \(config.width)x\(config.height), \(data.count / 1024)KB")
+            return data.base64EncodedString()
+        } catch {
+            Log.info("screenshot failed: \(error.localizedDescription) "
+                   + "(permission: \(hasPermission), bundle: \(Bundle.main.bundleIdentifier ?? "none"))")
             return nil
         }
-        guard let full = CGWindowListCreateImage(.infinite, .optionOnScreenOnly,
-                                                 kCGNullWindowID, [.bestResolution]) else {
-            Log.info("screenshot: capture returned nothing")
-            return nil
-        }
-
-        let scale = min(1, maxWidth / CGFloat(full.width))
-        let width = Int(CGFloat(full.width) * scale)
-        let height = Int(CGFloat(full.height) * scale)
-
-        guard let context = CGContext(data: nil, width: width, height: height,
-                                      bitsPerComponent: 8, bytesPerRow: 0,
-                                      space: CGColorSpaceCreateDeviceRGB(),
-                                      bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else {
-            return nil
-        }
-        context.interpolationQuality = .medium
-        context.draw(full, in: CGRect(x: 0, y: 0, width: width, height: height))
-
-        guard let scaled = context.makeImage() else { return nil }
-        let rep = NSBitmapImageRep(cgImage: scaled)
-        guard let data = rep.representation(using: .jpeg,
-                                            properties: [.compressionFactor: quality]) else {
-            return nil
-        }
-        Log.info("screenshot: \(width)x\(height), \(data.count / 1024)KB")
-        return data.base64EncodedString()
     }
 }
