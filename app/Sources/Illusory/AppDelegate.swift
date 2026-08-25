@@ -14,6 +14,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotKey = HotKey(keyCode: UInt32(kVK_Space), modifiers: UInt32(optionKey))
         hotKey?.onPress = { [weak self] in self?.beginGesture() }
         hotKey?.onRelease = { [weak self] in self?.endGesture() }
+
+        Task { await Self.reportConnections() }
+    }
+
+    /// Startup connectivity check. Illusory has no sign-in of its own, so this is
+    /// only reporting which of *your* workspaces it currently holds a token for.
+    private static func reportConnections() async {
+        guard Slack.isConfigured else {
+            print("Slack: not connected — \(Slack.SlackError.noToken.localizedDescription)")
+            return
+        }
+        do {
+            let me = try await Slack.whoAmI()
+            print("Slack: connected as \(me.user) in \(me.team)")
+        } catch {
+            print("Slack: \(error.localizedDescription)")
+        }
     }
 
     /// Held: capture context, infer the next step, and show what will happen.
