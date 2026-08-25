@@ -8,11 +8,23 @@ import Foundation
 /// confidence score gives Illusory the ability to say nothing.
 enum Intent {
     struct Proposal {
-        let action: String
+        let summary: String
         let confidence: Double
         let basis: String
+        let action: Action
 
-        var isActionable: Bool { confidence >= 0.55 && !action.isEmpty }
+        var isActionable: Bool {
+            guard confidence >= 0.55, !summary.isEmpty else { return false }
+            if case .none = action { return false }
+            return true
+        }
+
+        /// The preview caption: what will happen, and the literal thing that will
+        /// run. A preview that only paraphrases the action is not a preview.
+        var previewCaption: String {
+            let detail = action.preview
+            return detail.isEmpty ? summary : "\(summary)\n\(detail)"
+        }
     }
 
     static let nothing = "Nothing obvious to finish."
@@ -40,9 +52,27 @@ enum Intent {
     - If the evidence is thin, say so with low confidence. Saying nothing is correct \
     and expected; inventing a plausible action is the worst possible outcome.
 
+    You do not describe the step — you carry it out. Choose exactly one tool:
+
+    - "rename": renaming or renumbering files. Give absolute "from" paths and the new \
+    "to" names. Preferred whenever the task is files: it is checked and reversible.
+    - "type": insert text at the caret, exactly as the user would have typed it.
+    - "replace_selection": replace what is currently selected.
+    - "shell": anything else on disk. One command. Never destructive, never network, \
+    never sudo. Quote every path.
+    - "applescript": driving another app when nothing else fits.
+    - "none": the evidence is thin, or nothing needs doing. This is a good answer.
+
     Reply with JSON only, no fences, no prose:
-    {"action": "<imperative sentence>", "confidence": <0.0-1.0>, "basis": "<the one \
-    signal you used, under 10 words>"}
+    {"action": "<imperative sentence>", "confidence": <0.0-1.0>,
+     "basis": "<the one signal you used, under 10 words>",
+     "tool": "rename|type|replace_selection|shell|applescript|none",
+     "rename": [{"from": "/abs/path", "to": "newname.ext"}],
+     "text": "<for type / replace_selection>",
+     "shell": {"command": "...", "cwd": "/abs/dir"},
+     "applescript": "..."}
+
+    Include only the key belonging to the tool you chose.
     """
 
     static func propose(_ snapshot: ContextSnapshot) async throws -> Proposal {
@@ -64,12 +94,13 @@ enum Intent {
             let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
             let action = json["action"] as? String
         else {
-            return Proposal(action: raw.trimmingCharacters(in: .whitespacesAndNewlines),
-                            confidence: 0.5, basis: "unstructured reply")
+            // An unparseable reply is never executed: no structure, no action.
+            return Proposal(summary: raw.trimmingCharacters(in: .whitespacesAndNewlines),
+                            confidence: 0, basis: "unstructured reply", action: .none)
         }
-        let confidence = (json["confidence"] as? NSNumber)?.doubleValue ?? 0.5
-        return Proposal(action: action.trimmingCharacters(in: .whitespacesAndNewlines),
-                        confidence: confidence,
-                        basis: json["basis"] as? String ?? "")
+        return Proposal(summary: action.trimmingCharacters(in: .whitespacesAndNewlines),
+                        confidence: (json["confidence"] as? NSNumber)?.doubleValue ?? 0.5,
+                        basis: json["basis"] as? String ?? "",
+                        action: Action.parse(json))
     }
 }
