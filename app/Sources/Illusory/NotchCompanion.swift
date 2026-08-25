@@ -49,11 +49,11 @@ private struct CompanionView: View {
     @State private var spin: Double = 0
 
     var body: some View {
-        IllusoryMark(spokes: 110)
+        IllusoryMark(spokes: 28)
             .stroke(state.active ? AnyShapeStyle(AngularGradient(colors: Theme.sheen,
                                                                 center: .center))
                                  : AnyShapeStyle(Color.primary.opacity(0.62)),
-                    lineWidth: 1.1)
+                    lineWidth: IllusoryMark.lineWidth(design: 12, renderedAt: 18))
             .frame(width: 18, height: 18)
             .rotationEffect(.degrees(spin))
             .frame(maxWidth: .infinity, maxHeight: .infinity)

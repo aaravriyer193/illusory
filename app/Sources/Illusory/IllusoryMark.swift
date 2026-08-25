@@ -11,6 +11,12 @@ struct IllusoryMark: Shape {
     private let design: CGFloat = 560
     private let rim: CGFloat = 250
 
+    /// Stroke widths live in the 560-unit design space alongside logo_gen.py.
+    /// Convert to points for whatever size the mark is actually drawn at.
+    static func lineWidth(design sw: CGFloat, renderedAt size: CGFloat) -> CGFloat {
+        sw * size / 560
+    }
+
     func path(in rect: CGRect) -> Path {
         let scale = min(rect.width, rect.height) / design
         let c = CGPoint(x: rect.midX, y: rect.midY)

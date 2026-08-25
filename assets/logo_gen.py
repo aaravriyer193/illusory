@@ -34,8 +34,9 @@ def mark(N=150, lens_w=100, lens_h=264, twist=25, R=250, sw=3.2, size=560,
 
 # Locked parameters for the Illusory mark.
 PRIMARY = dict(N=130, lens_w=120, lens_h=280, sw=1.8, twist=25)
-# Heavier constants for small renders, so the mark survives below ~32px.
-SMALL = dict(N=110, lens_w=120, lens_h=280, sw=2.6, twist=25)
+# Menu-bar / favicon constants. The target is 18pt at @2x (~36px), not 16px:
+# above ~28 spokes the mark collapses into a grey blob at that size.
+SMALL = dict(N=28, lens_w=120, lens_h=280, sw=12, twist=25)
 
 if __name__ == "__main__":
     import pathlib
