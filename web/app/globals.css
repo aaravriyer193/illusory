@@ -330,3 +330,4 @@ footer a { color: var(--muted); }
   .reveal { transition: none; }
   .reveal *, .reveal.shown * { animation: none !important; opacity: 1 !important; }
 }
+
