@@ -13,6 +13,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var holdTimer: Timer?
     private var watchdog: Timer?
     private var thinking: Task<Void, Never>?
+    /// The run in progress, held so the stop button can cancel it.
+    private var running: Task<Void, Never>?
     private var pendingPlan: Agent.Plan?
     private var pendingContext: ContextSnapshot?
     /// Bumped on every press. Work scheduled by an earlier gesture checks this
@@ -26,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem.install()
+        statusItem.onStop = { [weak self] in self?.stopNow() }
         ActivityLog.shared.start()
 
         // Most of the context — window titles, focused field, selected text — needs
@@ -53,6 +56,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let string = event.paramDescriptor(forKeyword: keyDirectObject)?.stringValue,
               let url = URL(string: string) else { return }
         Connect.handle(url)
+    }
+
+    /// Cancels whatever is running and clears the screen immediately. Input
+    /// already posted cannot be recalled, but nothing further is sent.
+    private func stopNow() {
+        generation += 1
+        thinking?.cancel()
+        running?.cancel()
+        thinking = nil
+        running = nil
+        gesture.caption = "Stopped."
+        let gen = generation
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(700))
+            guard self.generation == gen else { return }
+            self.hideOverlay()
+        }
     }
 
     // MARK: - Gesture
@@ -135,7 +155,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// nothing slower than a second, nothing bigger than thirty seconds of the
     /// user's own work.
     private func commit(generation gen: Int, wasTap: Bool) {
-        Task { @MainActor in
+        running = Task { @MainActor in
             _ = await thinking?.result
             guard self.generation == gen else { return }
 
@@ -199,7 +219,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Nothing Illusory does may outlive the one-second rule by much. If the
         // overlay is somehow still up after this, it is a bug, not a long task.
         watchdog?.invalidate()
-        watchdog = Timer.scheduledTimer(withTimeInterval: 12, repeats: false) { _ in
+        watchdog = Timer.scheduledTimer(withTimeInterval: Agent.deadline + 20,
+                                        repeats: false) { _ in
             Task { @MainActor in
                 guard self.overlay != nil else { return }
                 Log.info("overlay watchdog fired — forcing it down")

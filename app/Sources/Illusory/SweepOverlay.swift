@@ -25,7 +25,7 @@ struct SweepOverlay: View {
                 .blur(radius: 22)
                 .opacity(bloom)
 
-            VStack {
+            VStack(spacing: 9) {
                 Spacer()
                 Text(state.caption)
                     .font(Theme.body(14))
@@ -39,9 +39,14 @@ struct SweepOverlay: View {
                     .background(.black.opacity(0.6), in: Capsule())
                     .overlay(Capsule().stroke(.white.opacity(0.12), lineWidth: 1))
                     .frame(maxWidth: 640)
-                    .padding(.bottom, 138)
                     .opacity(bloom)
                     .animation(.easeInOut(duration: 0.18), value: state.caption)
+
+                Text("click the mark in the menu bar to stop")
+                    .font(Theme.body(11))
+                    .foregroundStyle(.white.opacity(0.55))
+                    .opacity(bloom)
+                    .padding(.bottom, 130)
             }
         }
         .ignoresSafeArea()

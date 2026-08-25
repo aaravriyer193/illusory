@@ -141,6 +141,7 @@ enum Agent {
         var current = plan
 
         for round in 0..<maxRounds {
+            if Task.isCancelled { return "Stopped." }
             let outcome = await runOnce(current, context: snapshot,
                                         deadlineAt: deadlineAt, progress: progress)
             completedAcrossRounds += outcome.log
@@ -207,6 +208,7 @@ enum Agent {
             guard Date() < deadlineAt else {
                 return ("Stopped — took too long.", completed, true)
             }
+            if Task.isCancelled { return ("Stopped.", completed, true) }
             let step = queue.removeFirst()
             progress(step.preview)
 
