@@ -38,7 +38,8 @@ struct ContextSnapshot {
     var history: String?
     var localTime: String = ""
 
-    var screenshot: String?
+    var capture: Screenshot.Capture?
+    var screenshot: String? { capture?.base64 }
 
     // MARK: - Capture
 
@@ -117,7 +118,7 @@ struct ContextSnapshot {
     static func full() async -> ContextSnapshot {
         var snapshot = capture()
         snapshot.history = ActivityLog.shared.recent
-        snapshot.screenshot = await Screenshot.captureBase64JPEG()
+        snapshot.capture = await Screenshot.capture()
         return snapshot
     }
 
@@ -159,7 +160,14 @@ struct ContextSnapshot {
         if !board.isEmpty { blocks.append(board.joined(separator: "\n")) }
 
         if let history { blocks.append("Recent activity (newest last):\n\(history)") }
-        if screenshot != nil { blocks.append("A screenshot of the current screen is attached.") }
+        if let capture {
+            // The model must answer in the image's own pixel space; Illusory maps
+            // that back onto the display, which is a different size entirely.
+            blocks.append("A screenshot of the screen is attached. It is "
+                        + "\(capture.width)x\(capture.height) pixels. Any click or "
+                        + "drag coordinates you give must be in that pixel space, "
+                        + "measured from its top-left corner.")
+        }
 
         return blocks.joined(separator: "\n\n---\n\n")
     }

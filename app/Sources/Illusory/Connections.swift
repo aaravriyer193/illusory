@@ -95,19 +95,24 @@ struct ConnectionsView: View {
                 Task { await model.refresh() }
             }
 
-            Text(provider.detail)
+            Text(provider == .openRouter
+                 ? "Fast hosted model, chosen for you. Needs an OpenRouter key."
+                 : provider.detail)
                 .font(Theme.body(11)).foregroundStyle(.tertiary)
-
-            LabeledContent {
-                TextField("", text: $modelName)
-                    .textFieldStyle(.roundedBorder)
-                    .font(Theme.body(12))
-                    .onSubmit { Settings.model = modelName }
-            } label: {
-                Text("Model").font(Theme.heading(13))
-            }
+                .fixedSize(horizontal: false, vertical: true)
 
             if provider == .ollama {
+                // Local models are the user's own install, so which one runs is
+                // genuinely theirs to pick. The hosted model is not.
+                LabeledContent {
+                    TextField("", text: $modelName)
+                        .textFieldStyle(.roundedBorder)
+                        .font(Theme.body(12))
+                        .onSubmit { Settings.model = modelName }
+                } label: {
+                    Text("Model").font(Theme.heading(13))
+                }
+
                 LabeledContent {
                     TextField("", text: $ollamaHost)
                         .textFieldStyle(.roundedBorder)

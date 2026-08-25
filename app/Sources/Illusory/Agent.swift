@@ -46,9 +46,11 @@ enum Agent {
         2. Something the user has typed that is not yet true. "logo's attached" in \
         a message means attach the logo. Treat what they wrote as a promise to keep.
         3. An obvious next action in the focused field, given its contents and caret.
-        4. The screenshot, for state the text context missed. Screen coordinates in \
-        the screenshot are scaled — prefer files, keys and scripting over clicking \
-        at coordinates whenever either would do.
+        4. The screenshot, for state the text context missed. Give any click or \
+        drag coordinates in the screenshot's own pixel space, from its top-left \
+        corner — Illusory maps them onto the real display itself. Clicking is the \
+        least reliable tool there is: prefer files, keys and scripting whenever \
+        either would do the same job.
 
         HARD LIMITS:
         - Only ever do something that would take a person about thirty seconds. \

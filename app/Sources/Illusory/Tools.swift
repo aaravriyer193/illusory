@@ -185,7 +185,7 @@ enum Tools {
             guard let at = step.point() else {
                 throw ToolError.missingArgument(step.tool, "x/y")
             }
-            Input.click(at: at,
+            Input.click(at: Screenshot.toScreen(at),
                         button: step.tool == "right_click" ? .right : .left,
                         count: step.tool == "double_click" ? 2 : 1)
             return "Clicked"
@@ -195,7 +195,7 @@ enum Tools {
             guard let at = step.point() else {
                 throw ToolError.missingArgument(step.tool, "x/y")
             }
-            Input.move(to: at)
+            Input.move(to: Screenshot.toScreen(at))
             return "Moved cursor"
 
         case "drag":
@@ -203,7 +203,7 @@ enum Tools {
             guard let from = step.point(), let to = step.point("to_x", "to_y") else {
                 throw ToolError.missingArgument(step.tool, "x/y/to_x/to_y")
             }
-            Input.drag(from: from, to: to)
+            Input.drag(from: Screenshot.toScreen(from), to: Screenshot.toScreen(to))
             return "Dragged"
 
         case "scroll":

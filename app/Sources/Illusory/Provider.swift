@@ -45,15 +45,21 @@ enum Settings {
     /// so a fresh install works without anyone configuring anything.
     static var model: String {
         get {
-            if let stored = defaults.string(forKey: "model.\(provider.rawValue)"), !stored.isEmpty {
-                return stored
-            }
             switch provider {
-            case .openRouter: return Env["OPENROUTER_MODEL"] ?? provider.defaultModel
-            case .ollama:     return Env["OLLAMA_MODEL"] ?? provider.defaultModel
+            case .openRouter:
+                // Not user-selectable. It has to be fast, vision-capable and
+                // non-reasoning; a reasoning model spends the entire budget
+                // thinking and returns empty content, which just looks broken.
+                return provider.defaultModel
+            case .ollama:
+                let stored = defaults.string(forKey: "model.ollama") ?? ""
+                return stored.isEmpty ? (Env["OLLAMA_MODEL"] ?? provider.defaultModel) : stored
             }
         }
-        set { defaults.set(newValue, forKey: "model.\(provider.rawValue)") }
+        set {
+            guard provider == .ollama else { return }
+            defaults.set(newValue, forKey: "model.ollama")
+        }
     }
 
     static var ollamaHost: String {
