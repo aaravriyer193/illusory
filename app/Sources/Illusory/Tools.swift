@@ -39,6 +39,7 @@ struct Step {
         case "key":         return "press \((args["modifiers"] as? [String] ?? []).joined(separator: "+"))\(string("key").map { "+\($0)" } ?? "")"
         case "click", "double_click", "right_click":
             return "\(tool.replacingOccurrences(of: "_", with: " ")) at \(Int(point()?.x ?? 0)),\(Int(point()?.y ?? 0))"
+        case "click_element": return "click \(string("label") ?? "")"
         case "move_mouse":  return "move cursor"
         case "drag":        return "drag"
         case "scroll":      return "scroll"
@@ -81,7 +82,8 @@ enum Tools {
                  mkdir{path} write_file{path,text} read_file{path} list_dir{path}
     SHELL        shell{command,cwd}
     KEYBOARD     type{text} key{key,modifiers[]}
-    MOUSE        click{x,y} double_click{x,y} right_click{x,y} move_mouse{x,y}
+    MOUSE        click_element{label}  <- ALWAYS prefer this over raw coordinates
+                 click{x,y} double_click{x,y} right_click{x,y} move_mouse{x,y}
                  drag{x,y,to_x,to_y} scroll{dx,dy}
     APPS         open_app{name} activate_app{name} open_url{url} applescript{source}
     SYSTEM       set_clipboard{text} notify{text}
@@ -179,6 +181,50 @@ enum Tools {
             try needsInput()
             Input.press(try need("key"), step.args["modifiers"] as? [String] ?? [])
             return "Pressed"
+
+        case "click_element":
+            try needsInput()
+            let wanted = try need("label")
+            guard let front = NSWorkspace.shared.frontmostApplication else {
+                throw ToolError.failed("No frontmost app")
+            }
+            let candidates = AX.clickables(pid: front.processIdentifier)
+            let needle = wanted.lowercased()
+            // Exact match first, then containment either way — models paraphrase
+            // labels ("Save" for "Save URLs") more often than they get them exact.
+            let match = candidates.first { $0.label.lowercased() == needle }
+                ?? candidates.first { $0.label.lowercased().contains(needle) }
+                ?? candidates.first { needle.contains($0.label.lowercased()) }
+            guard let match else {
+                throw ToolError.failed("No control labelled \"\(wanted)\" — saw: "
+                    + candidates.prefix(8).map(\.label).joined(separator: ", "))
+            }
+            Log.info("click_element '\(wanted)' -> '\(match.label)' at "
+                   + "\(Int(match.centre.x)),\(Int(match.centre.y))")
+            Input.click(at: match.centre)
+            return "Clicked \(match.label)"
+
+        case "click_element":
+            try needsInput()
+            let wanted = try need("label")
+            guard let front = NSWorkspace.shared.frontmostApplication else {
+                throw ToolError.failed("No frontmost app")
+            }
+            let candidates = AX.clickables(pid: front.processIdentifier)
+            let needle = wanted.lowercased()
+            // Exact match first, then containment either way — models paraphrase
+            // labels ("Save" for "Save URLs") more often than they get them exact.
+            let match = candidates.first { $0.label.lowercased() == needle }
+                ?? candidates.first { $0.label.lowercased().contains(needle) }
+                ?? candidates.first { needle.contains($0.label.lowercased()) }
+            guard let match else {
+                throw ToolError.failed("No control labelled \"\(wanted)\" — saw: "
+                    + candidates.prefix(8).map(\.label).joined(separator: ", "))
+            }
+            Log.info("click_element '\(wanted)' -> '\(match.label)' at "
+                   + "\(Int(match.centre.x)),\(Int(match.centre.y))")
+            Input.click(at: match.centre)
+            return "Clicked \(match.label)"
 
         case "click", "double_click", "right_click":
             try needsInput()

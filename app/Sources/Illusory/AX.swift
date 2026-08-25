@@ -94,3 +94,80 @@ enum Scripting {
         return raw.split(separator: "\n").map(String.init)
     }
 }
+
+/// A thing on screen that can actually be clicked, with the frame the system says
+/// it occupies.
+///
+/// This exists because vision models are bad at pixel-precise grounding: asked to
+/// click a button, one confidently returned a coordinate in the bottom strip of the
+/// screenshot and hit the Dock. The accessibility tree knows exactly where every
+/// control is, so Illusory looks it up rather than letting the model estimate.
+struct UIElement {
+    let role: String
+    let label: String
+    let frame: CGRect
+
+    var centre: CGPoint { CGPoint(x: frame.midX, y: frame.midY) }
+}
+
+extension AX {
+    /// Roles worth offering as click targets. Static text and groups are excluded:
+    /// they bloat the prompt and are almost never what someone means by "click".
+    private static let clickableRoles: Set<String> = [
+        "AXButton", "AXLink", "AXMenuItem", "AXMenuButton", "AXCheckBox",
+        "AXRadioButton", "AXPopUpButton", "AXTextField", "AXTextArea",
+        "AXDisclosureTriangle", "AXComboBox", "AXTab", "AXCell",
+    ]
+
+    private static func rect(_ element: AXUIElement) -> CGRect? {
+        guard let posValue = copy(element, kAXPositionAttribute as String),
+              let sizeValue = copy(element, kAXSizeAttribute as String),
+              CFGetTypeID(posValue) == AXValueGetTypeID(),
+              CFGetTypeID(sizeValue) == AXValueGetTypeID() else { return nil }
+
+        var origin = CGPoint.zero
+        var size = CGSize.zero
+        guard AXValueGetValue(posValue as! AXValue, .cgPoint, &origin),
+              AXValueGetValue(sizeValue as! AXValue, .cgSize, &size) else { return nil }
+        return CGRect(origin: origin, size: size)
+    }
+
+    private static func describe(_ element: AXUIElement) -> String? {
+        for attribute in [kAXTitleAttribute, kAXDescriptionAttribute,
+                          kAXValueAttribute, kAXHelpAttribute] {
+            if let text = string(element, attribute as String) {
+                return String(text.prefix(60))
+            }
+        }
+        return nil
+    }
+
+    /// Walks the frontmost app's window for clickable controls. Depth- and
+    /// count-limited: a Chrome window has thousands of nodes, and the whole point
+    /// is to stay inside the gesture's latency budget.
+    static func clickables(pid: pid_t, limit: Int = 60, maxDepth: Int = 12) -> [UIElement] {
+        guard isTrusted else { return [] }
+        let app = AXUIElementCreateApplication(pid)
+        guard let window = element(app, kAXFocusedWindowAttribute as String) else { return [] }
+
+        var found: [UIElement] = []
+        var queue: [(AXUIElement, Int)] = [(window, 0)]
+
+        while !queue.isEmpty, found.count < limit {
+            let (node, depth) = queue.removeFirst()
+            if depth > maxDepth { continue }
+
+            if let role = string(node, kAXRoleAttribute as String),
+               clickableRoles.contains(role),
+               let frame = rect(node), frame.width > 4, frame.height > 4,
+               let label = describe(node) {
+                found.append(UIElement(role: role, label: label, frame: frame))
+            }
+
+            if let children = copy(node, kAXChildrenAttribute as String) as? [AXUIElement] {
+                queue.append(contentsOf: children.prefix(40).map { ($0, depth + 1) })
+            }
+        }
+        return found
+    }
+}

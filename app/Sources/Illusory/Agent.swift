@@ -46,11 +46,16 @@ enum Agent {
         2. Something the user has typed that is not yet true. "logo's attached" in \
         a message means attach the logo. Treat what they wrote as a promise to keep.
         3. An obvious next action in the focused field, given its contents and caret.
-        4. The screenshot, for state the text context missed. Give any click or \
-        drag coordinates in the screenshot's own pixel space, from its top-left \
-        corner — Illusory maps them onto the real display itself. Clicking is the \
-        least reliable tool there is: prefer files, keys and scripting whenever \
-        either would do the same job.
+        4. The screenshot, for state the text context missed.
+
+        CLICKING. To click something, use click_element with the label of one of \
+        the controls listed in the context. Those carry real coordinates from the \
+        system and are always correct. Do NOT estimate coordinates from the \
+        screenshot — you are bad at it, and a wrong guess clicks something else \
+        entirely. Raw click{x,y} is a last resort for when the target is not in \
+        that list, and its coordinates are in the screenshot's own pixel space, \
+        measured from the top-left. Better still, prefer files, keys and scripting \
+        over clicking whenever any of them would do the same job.
 
         HARD LIMITS:
         - Only ever do something that would take a person about thirty seconds. \

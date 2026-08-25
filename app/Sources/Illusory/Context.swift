@@ -38,6 +38,7 @@ struct ContextSnapshot {
     var history: String?
     var localTime: String = ""
 
+    var clickables: [UIElement] = []
     var capture: Screenshot.Capture?
     var screenshot: String? { capture?.base64 }
 
@@ -151,6 +152,17 @@ struct ContextSnapshot {
         }
 
         if let files { blocks.append(files.description) }
+
+        if !clickables.isEmpty {
+            // Exact frames, straight from the system. The model should pick one of
+            // these by name rather than estimating a pixel from the screenshot,
+            // which it is measurably bad at.
+            let list = clickables.prefix(50).map {
+                "  [\($0.role)] \($0.label)  at \(Int($0.centre.x)),\(Int($0.centre.y))"
+            }.joined(separator: "\n")
+            blocks.append("Clickable controls on screen, with their real screen "
+                        + "coordinates in points:\n\(list)")
+        }
 
         var board: [String] = []
         if let clipboard { board.append("Clipboard text:\n\(clipboard)") }
