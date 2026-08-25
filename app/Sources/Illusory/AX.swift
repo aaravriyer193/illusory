@@ -105,6 +105,7 @@ enum Scripting {
 struct UIElement {
     let role: String
     let label: String
+    let value: String?
     let frame: CGRect
 
     var centre: CGPoint { CGPoint(x: frame.midX, y: frame.midY) }
@@ -132,14 +133,38 @@ extension AX {
         return CGRect(origin: origin, size: size)
     }
 
+    /// What to call this control.
+    ///
+    /// Order matters more than it looks. A web form field usually has no AXTitle —
+    /// its name comes from the <label> the browser exposes as AXTitleUIElement, or
+    /// from its placeholder. Falling through to AXValue first meant a field was
+    /// named after whatever was typed in it, and an empty field had no name at all
+    /// and got dropped, which is precisely how "paste into the redirect URL field"
+    /// ended up clicking the workspace token field instead.
     private static func describe(_ element: AXUIElement) -> String? {
-        for attribute in [kAXTitleAttribute, kAXDescriptionAttribute,
-                          kAXValueAttribute, kAXHelpAttribute] {
+        if let title = string(element, kAXTitleAttribute as String) {
+            return String(title.prefix(70))
+        }
+        // The label element a form control is wired to.
+        if let labelElement = self.element(element, kAXTitleUIElementAttribute as String),
+           let label = string(labelElement, kAXValueAttribute as String)
+                    ?? string(labelElement, kAXTitleAttribute as String) {
+            return String(label.prefix(70))
+        }
+        for attribute in [kAXPlaceholderValueAttribute, kAXDescriptionAttribute,
+                          kAXHelpAttribute] {
             if let text = string(element, attribute as String) {
-                return String(text.prefix(60))
+                return String(text.prefix(70))
             }
         }
         return nil
+    }
+
+    /// Current contents, shown separately so the model never mistakes what a field
+    /// contains for what the field is called.
+    private static func contents(_ element: AXUIElement) -> String? {
+        guard let value = string(element, kAXValueAttribute as String) else { return nil }
+        return String(value.prefix(50))
     }
 
     /// Chromium and Electron apps hide their web content from accessibility until
@@ -183,11 +208,14 @@ extension AX {
             if let role = nodeRole,
                clickableRoles.contains(role),
                let frame = rect(node), frame.width > 4, frame.height > 4,
-               let label = describe(node) {
+               // An input with no name at all is still a candidate: empty fields
+               // are usually exactly the ones being asked about.
+               let label = describe(node) ?? (role.contains("Text") ? "(unnamed field)" : nil) {
                 // Web pages repeat labels constantly; keep the first of each.
                 let key = "\(role)|\(label)|\(Int(frame.midX)),\(Int(frame.midY))"
                 if seen.insert(key).inserted {
-                    found.append(UIElement(role: role, label: label, frame: frame))
+                    found.append(UIElement(role: role, label: label,
+                                          value: contents(node), frame: frame))
                 }
             }
 

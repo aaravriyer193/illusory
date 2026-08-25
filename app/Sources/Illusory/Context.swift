@@ -161,11 +161,15 @@ struct ContextSnapshot {
             // Exact frames, straight from the system. The model should pick one of
             // these by name rather than estimating a pixel from the screenshot,
             // which it is measurably bad at.
-            let list = clickables.prefix(50).map {
-                "  [\($0.role)] \($0.label)  at \(Int($0.centre.x)),\(Int($0.centre.y))"
+            let list = clickables.prefix(90).map { element in
+                let role = element.role.replacingOccurrences(of: "AX", with: "")
+                let contents = element.value.map { " — currently: \"\($0)\"" } ?? ""
+                return "  [\(role)] \(element.label)\(contents)"
             }.joined(separator: "\n")
-            blocks.append("Clickable controls on screen, with their real screen "
-                        + "coordinates in points:\n\(list)")
+            blocks.append("Controls on screen right now. Click one with "
+                        + "click_element using its exact name — never guess a "
+                        + "coordinate when the thing you want is in this "
+                        + "list:\n\(list)")
         }
 
         var board: [String] = []
