@@ -133,6 +133,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                    + " · controls=\(snapshot.clickables.count)")
             guard self.generation == gen, !Task.isCancelled else { return }
             self.pendingContext = snapshot
+            self.gesture.brand = Brand.detect(bundleID: snapshot.bundleID, url: snapshot.url)
 
             do {
                 let plan = try await Agent.plan(snapshot)
@@ -176,10 +177,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
 
             let snapshot = self.pendingContext ?? ContextSnapshot.capture()
+            self.gesture.working = true
             let result = await Agent.execute(plan, context: snapshot) { progress in
                 guard self.generation == gen else { return }
                 self.gesture.caption = progress
             }
+            self.gesture.working = false
             guard self.generation == gen else { return }
             Log.info("finished: \(result)")
             self.gesture.caption = result
@@ -230,6 +233,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func hideOverlay() {
+        gesture.working = false
+        gesture.brand = nil
         watchdog?.invalidate()
         watchdog = nil
         statusItem.setActive(false)

@@ -24,6 +24,24 @@ enum Brand: String, CaseIterable, Identifiable {
     /// two carry their own and must not be tinted.
     var isMonochrome: Bool { self == .github }
 
+    /// Which service, if any, the user is currently working in — by app for the
+    /// native clients, by host for the web ones. Used to badge the caption so it
+    /// is obvious what Illusory is touching.
+    static func detect(bundleID: String, url: String?) -> Brand? {
+        switch bundleID {
+        case "com.tinyspeck.slackmacgap": return .slack
+        case "notion.id", "so.notion.desktop": return .notion
+        default: break
+        }
+        guard let host = url.flatMap({ URL(string: $0)?.host?.lowercased() }) else {
+            return nil
+        }
+        if host.contains("slack.com") { return .slack }
+        if host.contains("notion.so") || host.contains("notion.site") { return .notion }
+        if host.contains("github.com") { return .github }
+        return nil
+    }
+
     var svg: String {
         switch self {
         case .slack:

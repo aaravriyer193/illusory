@@ -61,6 +61,15 @@ struct ConnectionsView: View {
         }
         .frame(width: 420)
         .task { await model.refresh() }
+        // A token arrives from the browser well after this view first appeared.
+        .onReceive(NotificationCenter.default.publisher(
+            for: .illusoryConnectionsChanged)) { _ in
+            Task { await model.refresh() }
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { await model.refresh() }
+        }
     }
 
     // MARK: - Header

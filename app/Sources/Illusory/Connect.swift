@@ -49,6 +49,10 @@ enum Keychain {
 /// exchange itself — a distributed Mac app cannot keep a secret, so it must not be
 /// asked to. The finished token comes back through the `illusory://` URL scheme and
 /// goes straight into the Keychain.
+extension Notification.Name {
+    static let illusoryConnectionsChanged = Notification.Name("illusory.connections.changed")
+}
+
 enum Connect {
     static let site = Env["ILLUSORY_SITE"] ?? "https://illusory.fulmina.re"
 
@@ -69,6 +73,7 @@ enum Connect {
         Keychain.remove("\(brand.rawValue).token")
         Keychain.remove("\(brand.rawValue).account")
         Log.info("connect: disconnected \(brand.rawValue)")
+        NotificationCenter.default.post(name: .illusoryConnectionsChanged, object: nil)
     }
 
     static func token(for brand: Brand) -> String? {
@@ -105,6 +110,9 @@ enum Connect {
         Keychain.set(item("account") ?? "Connected", for: "\(provider).account")
         UserDefaults.standard.removeObject(forKey: "oauth.state.\(provider)")
         Log.info("connect: \(provider) connected")
+        // The settings panel checked its state before the browser handed the token
+        // back, so without this it goes on saying "not connected" until reopened.
+        NotificationCenter.default.post(name: .illusoryConnectionsChanged, object: nil)
         return true
     }
 

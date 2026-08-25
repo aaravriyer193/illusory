@@ -5,6 +5,11 @@ import SwiftUI
 @MainActor
 final class GestureState: ObservableObject {
     @Published var caption: String = ""
+    /// The service being acted on, if any. Badged onto the caption so it is
+    /// obvious what Illusory is reaching into, rather than only what it is doing.
+    @Published var brand: Brand?
+    /// True while steps are running, as opposed to thinking about them.
+    @Published var working = false
 }
 
 /// Shown while the gesture runs. It is not decoration: it is the window in which
@@ -13,6 +18,7 @@ struct SweepOverlay: View {
     @ObservedObject var state: GestureState
     @State private var phase: Double = 0
     @State private var bloom: Double = 0
+    @State private var breath: Double = 1
 
     var body: some View {
         ZStack {
@@ -27,20 +33,30 @@ struct SweepOverlay: View {
 
             VStack(spacing: 9) {
                 Spacer()
-                Text(state.caption)
-                    .font(Theme.body(14))
-                    .foregroundStyle(.white.opacity(0.94))
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
+                HStack(spacing: 11) {
+                    if let brand = state.brand {
+                        BrandMark(brand: brand, size: 18)
+                            // Breathes while work is actually happening, so the
+                            // chip reads as live rather than as a finished label.
+                            .opacity(state.working ? breath : 1)
+                            .transition(.scale.combined(with: .opacity))
+                    }
+                    Text(state.caption)
+                        .font(Theme.body(14))
+                        .foregroundStyle(.white.opacity(0.94))
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(2)
+                }
                     .padding(.horizontal, 22)
                     .padding(.vertical, 12)
-                    // Background before the frame, so the capsule hugs its text and
-                    // the frame only centres it — otherwise it stretches to the cap.
+                    // Background before the frame, so the capsule hugs its content
+                    // and the frame only centres it — otherwise it stretches.
                     .background(.black.opacity(0.6), in: Capsule())
                     .overlay(Capsule().stroke(.white.opacity(0.12), lineWidth: 1))
                     .frame(maxWidth: 640)
                     .opacity(bloom)
                     .animation(.easeInOut(duration: 0.18), value: state.caption)
+                    .animation(.easeInOut(duration: 0.25), value: state.brand)
 
                 Text("click the mark in the menu bar to stop")
                     .font(Theme.body(11))
@@ -55,6 +71,9 @@ struct SweepOverlay: View {
                 phase = 360
             }
             withAnimation(.easeOut(duration: 0.24)) { bloom = 1 }
+            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
+                breath = 0.45
+            }
         }
     }
 }
