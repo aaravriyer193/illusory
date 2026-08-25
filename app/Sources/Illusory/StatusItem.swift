@@ -5,23 +5,51 @@ import SwiftUI
 /// right-hand strip as every other agent app. It shows the mark at rest and spins
 /// it while a gesture is running.
 @MainActor
-final class StatusItemController {
+final class StatusItemController: NSObject {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private var spinTimer: Timer?
     private var angle: CGFloat = 0
+
+    private var settingsWindow: NSWindow?
 
     func install() {
         item.button?.image = Self.markImage(rotation: 0)
         item.button?.toolTip = "Illusory — tap or hold ⌥Space"
 
         let menu = NSMenu()
-        let status = NSMenuItem(title: "Tap or hold ⌥Space", action: nil, keyEquivalent: "")
-        status.isEnabled = false
-        menu.addItem(status)
+        let hint = NSMenuItem(title: "Tap or hold ⌥Space", action: nil, keyEquivalent: "")
+        hint.isEnabled = false
+        menu.addItem(hint)
+        menu.addItem(.separator())
+
+        let connections = NSMenuItem(title: "Connections & Settings…",
+                                     action: #selector(openSettings), keyEquivalent: ",")
+        connections.target = self
+        menu.addItem(connections)
+
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit Illusory",
                                 action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         item.menu = menu
+    }
+
+    /// The app is an agent, so it has to explicitly activate to bring a window
+    /// forward — otherwise the panel opens behind whatever the user was doing.
+    @objc private func openSettings() {
+        if settingsWindow == nil {
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 400, height: 480),
+                styleMask: [.titled, .closable, .fullSizeContentView],
+                backing: .buffered, defer: false)
+            window.titlebarAppearsTransparent = true
+            window.titleVisibility = .hidden
+            window.isReleasedWhenClosed = false
+            window.center()
+            window.contentView = NSHostingView(rootView: ConnectionsView())
+            settingsWindow = window
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        settingsWindow?.makeKeyAndOrderFront(nil)
     }
 
     func setActive(_ active: Bool) {
