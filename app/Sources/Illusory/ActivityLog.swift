@@ -15,7 +15,7 @@ final class ActivityLog {
     }
 
     private var events: [Event] = []
-    private let limit = 40
+    private let limit = 100
     private var lastChangeCount = NSPasteboard.general.changeCount
     private var clipboardTimer: Timer?
     private var windowTimer: Timer?

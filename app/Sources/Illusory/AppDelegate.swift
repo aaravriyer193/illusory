@@ -13,7 +13,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var holdTimer: Timer?
     private var watchdog: Timer?
     private var thinking: Task<Void, Never>?
-    private var pendingProposal: Intent.Proposal?
+    private var pendingPlan: Agent.Plan?
+    private var pendingContext: ContextSnapshot?
     /// Bumped on every press. Work scheduled by an earlier gesture checks this
     /// before touching the overlay, so a second press can't be torn down by the
     /// first one's pending cleanup.
@@ -21,7 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Under this, the gesture is a tap: Illusory just goes. Over it, the user is
     /// holding to look first, so the preview stays up until they let go.
-    private let holdThreshold: TimeInterval = 0.25
+    private var holdThreshold: TimeInterval { Settings.holdThreshold }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem.install()
@@ -38,7 +39,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotKey?.onPress = { Task { @MainActor in self.keyDown() } }
         hotKey?.onRelease = { Task { @MainActor in self.keyUp() } }
 
-        Task { await Self.reportConnections() }
+        // Tokens come back from the website through the URL scheme.
+        NSAppleEventManager.shared().setEventHandler(
+            self, andSelector: #selector(handleURLEvent(_:reply:)),
+            forEventClass: AEEventClass(kInternetEventClass),
+            andEventID: AEEventID(kAEGetURL))
+
+        Log.info("ready · provider \(Settings.provider.rawValue) · model \(Settings.model)")
+    }
+
+    @objc private func handleURLEvent(_ event: NSAppleEventDescriptor,
+                                      reply: NSAppleEventDescriptor) {
+        guard let string = event.paramDescriptor(forKeyword: keyDirectObject)?.stringValue,
+              let url = URL(string: string) else { return }
+        Connect.handle(url)
     }
 
     // MARK: - Gesture
@@ -77,11 +91,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Works out what to do, and shows it. Nothing is carried out here — the user
     /// is still holding the key, and the preview is the point of the hold.
     private func startThinking(generation gen: Int) {
-        pendingProposal = nil
+        pendingPlan = nil
+        pendingContext = nil
         thinking?.cancel()
 
-        guard OpenRouter.isConfigured else {
-            Log.info("OpenRouter: no key set")
+        guard Model.isConfigured else {
+            Log.info("model: not configured")
             gesture.caption = "No model configured."
             return
         }
@@ -96,17 +111,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                    + " · history=\(snapshot.history != nil)"
                    + " · files=\(snapshot.files != nil)")
             guard self.generation == gen, !Task.isCancelled else { return }
+            self.pendingContext = snapshot
 
             do {
-                let proposal = try await Intent.propose(snapshot)
+                let plan = try await Agent.plan(snapshot)
                 guard self.generation == gen, !Task.isCancelled else { return }
-                Log.info("proposed in \(Int(Date().timeIntervalSince(started) * 1000))ms "
-                       + "[conf \(proposal.confidence), basis: \(proposal.basis)] "
-                       + "\(proposal.summary) :: \(proposal.action.preview)")
-                self.pendingProposal = proposal
+                Log.info("planned in \(Int(Date().timeIntervalSince(started) * 1000))ms "
+                       + "[conf \(plan.confidence), basis: \(plan.basis)] \(plan.summary) "
+                       + ":: \(plan.steps.map(\.preview).joined(separator: " | "))")
+                self.pendingPlan = plan
                 // Below the bar Illusory says nothing rather than inventing a step.
-                self.gesture.caption = proposal.isActionable
-                    ? proposal.previewCaption : Intent.nothing
+                self.gesture.caption = plan.isActionable ? plan.previewCaption : Agent.nothing
             } catch {
                 guard self.generation == gen else { return }
                 Log.info("model error: \(error.localizedDescription)")
@@ -123,7 +138,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             _ = await thinking?.result
             guard self.generation == gen else { return }
 
-            guard let proposal = self.pendingProposal, proposal.isActionable else {
+            guard let plan = self.pendingPlan, plan.isActionable else {
                 self.dismiss(after: .milliseconds(1600), generation: gen)
                 return
             }
@@ -131,25 +146,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // A tap is a blind commit — the user never saw the preview. Anything
             // that can delete, send, or run arbitrary code needs to have been
             // looked at first, so a tap shows it and waits for a deliberate hold.
-            if wasTap, proposal.action.isHighRisk {
-                Log.info("tap on high-risk action — holding for confirmation")
-                self.gesture.caption = "Hold ⌥Space to run:\n\(proposal.action.preview)"
-                self.dismiss(after: .milliseconds(2600), generation: gen)
+            if wasTap, plan.isHighRisk {
+                Log.info("tap on high-risk plan — holding for confirmation")
+                self.gesture.caption = "Hold ⌥Space to run:\n"
+                    + plan.steps.map(\.preview).joined(separator: " · ")
+                self.dismiss(after: .milliseconds(2800), generation: gen)
                 return
             }
 
-            self.gesture.caption = "Doing it…"
-            do {
-                let result = try await Executor.run(proposal.action)
+            let snapshot = self.pendingContext ?? ContextSnapshot.capture()
+            let result = await Agent.execute(plan, context: snapshot) { progress in
                 guard self.generation == gen else { return }
-                Log.info("executed: \(result)")
-                self.gesture.caption = result
-            } catch {
-                guard self.generation == gen else { return }
-                Log.info("execution failed: \(error.localizedDescription)")
-                self.gesture.caption = error.localizedDescription
+                self.gesture.caption = progress
             }
-            self.dismiss(after: .milliseconds(2000), generation: gen)
+            guard self.generation == gen else { return }
+            Log.info("finished: \(result)")
+            self.gesture.caption = result
+            self.dismiss(after: .milliseconds(2200), generation: gen)
         }
     }
 
@@ -204,22 +217,4 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Connections
 
-    /// Illusory has no sign-in of its own; this only reports which of *your*
-    /// workspaces it currently holds a token for.
-    private static func reportConnections() async {
-        guard Integrations.enabled else {
-            Log.info("integrations: off")
-            return
-        }
-        guard Slack.isConfigured else {
-            Log.info("Slack: no token")
-            return
-        }
-        do {
-            let me = try await Slack.whoAmI()
-            Log.info("Slack: connected as \(me.user) in \(me.team)")
-        } catch {
-            Log.info("Slack: \(error.localizedDescription)")
-        }
-    }
 }

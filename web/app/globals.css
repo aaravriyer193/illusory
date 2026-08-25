@@ -1,0 +1,332 @@
+/* The mark is monochrome, so the site is too. Colour appears only where a brand
+   logo brings its own, and in the hero's aperture glow. */
+:root {
+  --bg: #08080a;
+  --panel: #0e0e12;
+  --fg: #f4f4f5;
+  --muted: #9c9ca5;
+  --faint: #232329;
+  --ok: #6ee7a8;
+  --fail: #f0a3a3;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: Geist, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 400;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+main { max-width: 58rem; margin: 0 auto; padding: 5.5rem 1.5rem 4rem; }
+
+h1, h2, h3 { font-weight: 350; letter-spacing: -0.018em; margin: 0; }
+
+.eyebrow {
+  display: block;
+  font-size: 0.71rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 1rem;
+}
+
+/* ── Hero ─────────────────────────────────────────────────────────────── */
+
+.hero { text-align: center; }
+
+.hero-mark { display: inline-grid; place-items: center; color: var(--fg); position: relative; }
+.hero-mark::after {
+  content: "";
+  position: absolute;
+  inset: -30%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(180, 190, 255, 0.15), transparent 68%);
+  z-index: -1;
+}
+
+.hero h1 {
+  font-size: clamp(2rem, 5.4vw, 3.1rem);
+  line-height: 1.12;
+  margin: 2rem auto 1.1rem;
+  max-width: 18ch;
+}
+.hero h1 em { font-style: normal; color: var(--muted); }
+
+.lede {
+  font-size: 1.1rem;
+  max-width: 34rem;
+  margin: 0 auto;
+}
+
+.sub {
+  color: var(--muted);
+  font-size: 0.98rem;
+  max-width: 32rem;
+  margin: 0.7rem auto 0;
+}
+
+.cta-row {
+  margin-top: 2.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.cta {
+  padding: 0.7rem 1.6rem;
+  border-radius: 999px;
+  background: var(--fg);
+  color: var(--bg);
+  text-decoration: none;
+  font-size: 0.95rem;
+  transition: transform 0.15s ease;
+}
+.cta:hover { transform: translateY(-1px); }
+
+.cta-note { color: var(--muted); font-size: 0.85rem; }
+
+/* Keycaps. Modifier and key are separate caps, the way they are on the keyboard. */
+.key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  font-size: 0.82rem;
+  color: var(--fg);
+  background: linear-gradient(180deg, #1c1c22, #131318);
+  border: 1px solid var(--faint);
+  border-bottom-width: 2px;
+  border-radius: 7px;
+  padding: 0.24rem 0.55rem;
+  min-width: 1.9rem;
+}
+.key.inline { margin: 0 0.12rem; transform: translateY(-1px); }
+.key.big { font-size: 1rem; padding: 0.6rem 0.9rem; min-width: 2.9rem; border-radius: 10px; }
+.key.big.wide { min-width: 7rem; }
+
+/* ── Surfaces ─────────────────────────────────────────────────────────── */
+
+.surfaces { margin: 5rem 0 4rem; text-align: center; }
+
+.surfaces-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.6rem; }
+
+.surface {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.5rem 0.95rem;
+  border: 1px solid var(--faint);
+  border-radius: 999px;
+  font-size: 0.9rem;
+}
+.surface.muted { color: var(--muted); border-style: dashed; }
+
+/* ── How it works ─────────────────────────────────────────────────────── */
+
+.how { margin: 5rem 0; }
+
+.how-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; }
+
+.step {
+  padding: 1.4rem;
+  border: 1px solid var(--faint);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent);
+}
+.step-n { font-size: 0.71rem; letter-spacing: 0.1em; color: var(--muted); }
+.step h3 { font-size: 1.05rem; margin: 0.5rem 0 0.45rem; }
+.step p { color: var(--muted); font-size: 0.9rem; margin: 0; }
+
+.gesture {
+  margin-top: 2rem;
+  padding: 1.6rem;
+  border: 1px solid var(--faint);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  gap: 1.6rem;
+  overflow: hidden;
+}
+
+.gesture-keys { display: flex; gap: 0.5rem; flex-shrink: 0; }
+
+.gesture-track { position: relative; flex: 1; min-width: 0; }
+
+.gesture-captions {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+.gesture-captions span:nth-child(2) { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.gesture-captions span:last-child { color: var(--fg); }
+
+/* ── Use cases ────────────────────────────────────────────────────────── */
+
+.cases { margin: 4.5rem 0; display: grid; gap: 2rem; }
+
+.case {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  gap: 2rem;
+  align-items: center;
+  padding: 1.75rem;
+  border: 1px solid var(--faint);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent);
+}
+.case:nth-child(even) .case-copy { order: 2; }
+
+.case-copy h2 { font-size: 1.4rem; margin: 0 0 0.6rem; }
+.case-copy p { color: var(--muted); margin: 0; font-size: 0.95rem; }
+
+@property --glow-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+/* The same edge glow the app paints while a gesture is live, wrapped around each
+   demo window so it reads as Illusory working rather than as a static mockup. */
+.case-scene { position: relative; border-radius: 12px; }
+
+.case-scene::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 14px;
+  background: conic-gradient(
+    from var(--glow-angle),
+    transparent 0deg,
+    rgba(120, 140, 255, 0.95) 40deg,
+    rgba(205, 140, 255, 0.9) 78deg,
+    rgba(130, 215, 255, 0.85) 116deg,
+    transparent 160deg,
+    transparent 360deg
+  );
+  filter: blur(9px);
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  z-index: 0;
+}
+
+.reveal.shown .case-scene::before {
+  opacity: 0.75;
+  animation: rotate-glow 3.6s linear infinite;
+}
+
+.case-scene .scene { position: relative; z-index: 1; }
+
+@keyframes rotate-glow { to { --glow-angle: 360deg; } }
+
+.scene { width: 100%; height: auto; display: block; border-radius: 11px; }
+.scene-chrome { fill: var(--muted); font-size: 11.5px; font-family: inherit; }
+.scene-label { fill: var(--muted); font-size: 9.5px; letter-spacing: 0.09em; font-family: inherit; }
+.scene-text { font-size: 12.5px; font-family: inherit; fill: var(--fg); }
+.scene-text.on { fill: var(--fg); }
+.scene-text.off { fill: var(--muted); }
+.scene-text.arrow { fill: #4a4a55; }
+.scene-text.ok { fill: var(--ok); }
+.scene-text.fail { fill: var(--fail); }
+.scene-text.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; }
+.prompt { fill: var(--ok); }
+
+/* ── Reveal, holding scene animations until they're on screen ─────────── */
+
+.reveal { opacity: 0; transform: translateY(14px); transition: opacity 0.55s ease, transform 0.55s ease; }
+.reveal.shown { opacity: 1; transform: none; }
+
+.reveal .row-done,
+.reveal .row-todo,
+.reveal .attach-pop,
+.reveal .table-in,
+.reveal .table-row,
+.reveal .repair-in { opacity: 0; }
+
+.reveal.shown .row-done { animation: fade-in 0.4s ease forwards; }
+.reveal.shown .row-todo { animation: slide-in 0.5s ease forwards; }
+.reveal.shown .attach-pop { animation: pop 0.5s cubic-bezier(0.2, 1.3, 0.4, 1) 0.7s forwards; }
+.reveal.shown .table-in { animation: fade-in 0.4s ease 0.25s forwards; }
+.reveal.shown .table-row { animation: slide-in 0.4s ease forwards; }
+.reveal.shown .repair-in { animation: fade-in 0.5s ease 1s forwards; }
+
+@keyframes fade-in { to { opacity: 1; } }
+@keyframes slide-in { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
+@keyframes pop { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: none; } }
+
+/* ── Marquee ──────────────────────────────────────────────────────────── */
+
+.marquee-wrap { margin: 5rem 0; text-align: center; }
+
+.marquee {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+          mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+
+.marquee-track { display: flex; gap: 0.6rem; width: max-content; animation: scroll 34s linear infinite; }
+.marquee:hover .marquee-track { animation-play-state: paused; }
+
+@keyframes scroll { to { transform: translateX(-50%); } }
+
+.chip {
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--faint);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: nowrap;
+}
+
+/* ── Rules ────────────────────────────────────────────────────────────── */
+
+.rule { margin: 4.5rem 0; }
+.rule h2 { font-size: 1.4rem; margin-bottom: 0.8rem; }
+.rule p { color: var(--muted); margin: 0; }
+
+.two-up { display: grid; grid-template-columns: 1fr 1fr; gap: 2.5rem; }
+
+footer {
+  margin-top: 6rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--faint);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+footer a { color: var(--muted); }
+.footer-mark { display: inline-flex; align-items: center; gap: 0.6rem; }
+
+/* ── Small screens ────────────────────────────────────────────────────── */
+
+@media (max-width: 52rem) {
+  .how-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 46rem) {
+  main { padding-top: 3.5rem; }
+  .case { grid-template-columns: 1fr; }
+  .case:nth-child(even) .case-copy { order: 0; }
+  .two-up { grid-template-columns: 1fr; gap: 2rem; }
+  .gesture { flex-direction: column; align-items: flex-start; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track { animation: none; }
+  .case-scene::before { animation: none; }
+  .reveal { transition: none; }
+  .reveal *, .reveal.shown * { animation: none !important; opacity: 1 !important; }
+}
