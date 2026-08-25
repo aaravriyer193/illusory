@@ -96,14 +96,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// workspaces it currently holds a token for.
     private static func reportConnections() async {
         guard Slack.isConfigured else {
-            print("Slack: not connected — \(Slack.SlackError.noToken.localizedDescription)")
+            Log.info("Slack: not connected — \(Slack.SlackError.noToken.localizedDescription)")
             return
         }
         do {
             let me = try await Slack.whoAmI()
-            print("Slack: connected as \(me.user) in \(me.team)")
+            Log.info("Slack: connected as \(me.user) in \(me.team)")
         } catch {
-            print("Slack: \(error.localizedDescription)")
+            Log.info("Slack: \(error.localizedDescription)")
         }
     }
 }
