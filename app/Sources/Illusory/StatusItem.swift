@@ -15,6 +15,11 @@ final class StatusItemController: NSObject {
     private var spinTimer: Timer?
     private var angle: CGFloat = 0
     private var menu: NSMenu?
+    /// Bumped on every state change. Each spin tick hops through a Task to reach
+    /// the main actor, and invalidating the timer does not cancel ticks already
+    /// queued — so one could land after the reset and repaint the stop icon on an
+    /// idle item. Ticks check this before drawing anything.
+    private var activeGeneration = 0
 
     /// Called when the user clicks the item mid-run.
     var onStop: () -> Void = {}
@@ -45,6 +50,9 @@ final class StatusItemController: NSObject {
 
     func setActive(_ active: Bool) {
         spinTimer?.invalidate()
+        spinTimer = nil
+        activeGeneration += 1
+        let generation = activeGeneration
 
         guard active else {
             angle = 0
@@ -64,7 +72,7 @@ final class StatusItemController: NSObject {
 
         spinTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                guard let self else { return }
+                guard let self, self.activeGeneration == generation else { return }
                 self.angle += 4
                 self.item.button?.image = Self.markImage(rotation: self.angle, stopping: true)
             }
