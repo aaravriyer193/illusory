@@ -55,21 +55,21 @@ struct ConnectionsView: View {
 
             section("Gesture") {
                 LabeledContent {
-                    Text("⌥Space").font(Theme.geist(12)).foregroundStyle(.secondary)
+                    Text("⌥Space").font(Theme.body(12)).foregroundStyle(.secondary)
                 } label: {
-                    Text("Key").font(Theme.geist(13))
+                    Text("Key").font(Theme.heading(13))
                 }
                 VStack(alignment: .leading, spacing: 5) {
                     Text("Hold to preview after \(Int(holdThreshold * 1000))ms")
-                        .font(Theme.geist(13))
+                        .font(Theme.body(13))
                     Slider(value: $holdThreshold, in: 0.1...0.6)
                     Text("Below this, a tap just runs.")
-                        .font(Theme.geist(11)).foregroundStyle(.tertiary)
+                        .font(Theme.body(11)).foregroundStyle(.tertiary)
                 }
             }
 
             Text("Illusory has no account. Tokens stay on this Mac.")
-                .font(Theme.geist(11))
+                .font(Theme.body(11))
                 .foregroundStyle(.tertiary)
         }
         .padding(30)
@@ -83,9 +83,9 @@ struct ConnectionsView: View {
                 .stroke(.primary, lineWidth: IllusoryMark.lineWidth(design: 12, renderedAt: 26))
                 .frame(width: 26, height: 26)
             VStack(alignment: .leading, spacing: 1) {
-                Text("Illusory").font(Theme.geist(16))
+                Text("Illusory").font(Theme.heading(16))
                 Text("One key. AI finishes what you started.")
-                    .font(Theme.geist(11)).foregroundStyle(.secondary)
+                    .font(Theme.body(11)).foregroundStyle(.secondary)
             }
         }
     }
@@ -93,7 +93,7 @@ struct ConnectionsView: View {
     private func section<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 11) {
             Text(title.uppercased())
-                .font(Theme.geist(10)).kerning(0.8).foregroundStyle(.tertiary)
+                .font(Theme.heading(10)).kerning(0.8).foregroundStyle(.tertiary)
             content()
         }
     }
@@ -101,9 +101,9 @@ struct ConnectionsView: View {
     private func row(_ name: String, _ status: ConnectionsModel.Status) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 9) {
             Circle().fill(color(for: status)).frame(width: 6, height: 6).offset(y: -1)
-            Text(name).font(Theme.geist(13)).frame(width: 60, alignment: .leading)
+            Text(name).font(Theme.heading(13)).frame(width: 60, alignment: .leading)
             Text(detail(for: status))
-                .font(Theme.geist(11))
+                .font(Theme.body(11))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)

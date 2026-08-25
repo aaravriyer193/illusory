@@ -10,6 +10,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var pressedAt: Date?
     private var holdTimer: Timer?
+    private var watchdog: Timer?
+    /// Bumped on every press. Work scheduled by an earlier gesture checks this
+    /// before touching the overlay, so a second press can't be torn down by the
+    /// first one's pending cleanup.
+    private var generation = 0
 
     /// Under this, the gesture is a tap: Illusory just goes. Over it, the user is
     /// holding to look first, so the preview stays up until they let go.
@@ -28,17 +33,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Gesture
 
     private func keyDown() {
+        generation += 1
+        let gen = generation
         pressedAt = Date()
         holdTimer?.invalidate()
         // Only paint the preview if they're still holding once the threshold passes,
         // so a quick tap never flashes a half-drawn overlay.
         holdTimer = Timer.scheduledTimer(withTimeInterval: holdThreshold, repeats: false) { _ in
-            Task { @MainActor in self.showOverlay(caption: "Reading what you're doing…") }
+            Task { @MainActor in
+                guard self.generation == gen else { return }
+                self.showOverlay(caption: "Reading what you're doing…")
+            }
         }
     }
 
     private func keyUp() {
         holdTimer?.invalidate()
+        let gen = generation
         let held = Date().timeIntervalSince(pressedAt ?? Date())
         pressedAt = nil
 
@@ -48,6 +59,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             showOverlay(caption: "Finishing what you started…")
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(600))
+                guard self.generation == gen else { return }
                 self.hideOverlay()
                 self.commit()
             }
@@ -82,9 +94,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.setFrame(screen.frame, display: true)
         panel.orderFrontRegardless()
         overlay = panel
+
+        // Nothing Illusory does may outlive the one-second rule by much. If the
+        // overlay is somehow still up after this, it is a bug, not a long task.
+        watchdog?.invalidate()
+        watchdog = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: false) { _ in
+            Task { @MainActor in
+                guard self.overlay != nil else { return }
+                Log.info("overlay watchdog fired — forcing it down")
+                self.hideOverlay()
+            }
+        }
     }
 
     private func hideOverlay() {
+        watchdog?.invalidate()
+        watchdog = nil
         statusItem.setActive(false)
         overlay?.orderOut(nil)
         overlay = nil

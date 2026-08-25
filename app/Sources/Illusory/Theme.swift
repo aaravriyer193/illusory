@@ -2,17 +2,19 @@ import SwiftUI
 import AppKit
 
 enum Theme {
-    /// Geist at weight 350 — set through the variable font's `wght` axis, so it is
-    /// the real 350 and not Light rounded up. Falls back to the system face until
-    /// the Geist variable font is dropped into Resources/.
-    static func geist(_ size: CGFloat) -> Font {
+    /// Headings sit at 350 and body text at 400, set through Geist's `wght`
+    /// variable axis so these are the real weights rather than Light and Regular
+    /// rounded to the nearest named face. Falls back to the system face until the
+    /// Geist variable font is dropped into Resources/.
+    static func heading(_ size: CGFloat) -> Font { geist(size, weight: 350) }
+    static func body(_ size: CGFloat) -> Font { geist(size, weight: 400) }
+
+    private static func geist(_ size: CGFloat, weight: Int) -> Font {
         guard let base = NSFont(name: "Geist", size: size) else {
-            return .system(size: size, weight: .light)
+            return .system(size: size, weight: weight <= 350 ? .light : .regular)
         }
         let wght = FourCharCode(0x77676874)  // 'wght'
-        let descriptor = base.fontDescriptor.addingAttributes([
-            .variation: [wght: 350]
-        ])
+        let descriptor = base.fontDescriptor.addingAttributes([.variation: [wght: weight]])
         return Font(NSFont(descriptor: descriptor, size: size) ?? base)
     }
 
