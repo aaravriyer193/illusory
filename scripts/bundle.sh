@@ -17,6 +17,12 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Illusory"
 
+# The icon is generated from the same SVG as the logo, so Finder, the Dock and the
+# website can never show three different marks.
+swift scripts/make-icon.swift >/dev/null
+iconutil -c icns build/Illusory.iconset -o "$APP/Contents/Resources/Illusory.icns"
+rm -rf build/Illusory.iconset
+
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -31,6 +37,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundleVersion</key>           <string>1</string>
     <key>LSMinimumSystemVersion</key>    <string>14.0</string>
     <!-- Agent app: menu bar only, no dock icon, no window on launch. -->
+    <key>CFBundleIconFile</key>          <string>Illusory</string>
     <key>LSUIElement</key>               <true/>
     <!-- Tokens come back from illusory.fulmina.re through this scheme. -->
     <key>CFBundleURLTypes</key>
