@@ -219,7 +219,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Nothing Illusory does may outlive the one-second rule by much. If the
         // overlay is somehow still up after this, it is a bug, not a long task.
         watchdog?.invalidate()
-        watchdog = Timer.scheduledTimer(withTimeInterval: Agent.deadline + 20,
+        watchdog = Timer.scheduledTimer(withTimeInterval: Agent.deadline + 30,
                                         repeats: false) { _ in
             Task { @MainActor in
                 guard self.overlay != nil else { return }

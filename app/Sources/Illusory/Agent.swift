@@ -13,8 +13,11 @@ enum Agent {
     /// How many times Illusory may look again and carry on. One pass can only ever
     /// act on what was true before it started — clicking a field, for instance,
     /// changes what the next step should be.
-    static let maxRounds = 4
-    static let deadline: TimeInterval = 45
+    static let maxRounds = 8
+    /// A backstop against a genuinely stuck loop, not a limit on how long real
+    /// work may take. The user has a stop button; cutting off a run that is
+    /// making progress is worse than letting it run on.
+    static let deadline: TimeInterval = 600
 
     static let nothing = "Nothing obvious to finish."
 
@@ -216,8 +219,9 @@ enum Agent {
                 last = try await Tools.run(step)
                 completed.append("\(step.tool): ok — \(last.prefix(80))")
                 Log.info("step ok · \(step.tool) · \(last.prefix(80))")
-                // The next step reads the screen the previous one just changed.
-                try? await Task.sleep(for: .milliseconds(160))
+                // The next step reads the screen the previous one just changed,
+                // so give the app time to finish changing it.
+                try? await Task.sleep(for: .milliseconds(500))
             } catch {
                 let reason = error.localizedDescription
                 Log.info("step failed · \(step.tool) · \(reason)")

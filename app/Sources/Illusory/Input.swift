@@ -16,14 +16,16 @@ import CoreGraphics
 enum Input {
     /// Between a key going down and coming up. Real keypresses are tens of
     /// milliseconds; apps that debounce input ignore anything much shorter.
-    static let keyHold = Duration.milliseconds(14)
+    static let keyHold = Duration.milliseconds(5)
     /// Between one character and the next.
-    static let keyGap = Duration.milliseconds(18)
+    static let keyGap = Duration.milliseconds(7)
     /// Between mouse down and mouse up.
     static let clickHold = Duration.milliseconds(60)
     /// After anything that can move focus or start navigation, before the next
-    /// step assumes the change has happened.
-    static let settle = Duration.milliseconds(350)
+    /// step assumes the change has happened. Generous on purpose: this is where
+    /// a page actually re-renders, and a step that reads the screen too early is
+    /// reading the previous screen.
+    static let settle = Duration.milliseconds(700)
 
     private static var source: CGEventSource? {
         CGEventSource(stateID: .combinedSessionState)
