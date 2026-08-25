@@ -6,6 +6,7 @@ import SwiftUI
 final class ConnectionsModel: ObservableObject {
     enum Status: Equatable {
         case checking
+        case comingSoon
         case connected(String)
         case missing(String)
         case failed(String)
@@ -16,6 +17,12 @@ final class ConnectionsModel: ObservableObject {
     @Published var github: Status = .checking
 
     func refresh() async {
+        guard Integrations.enabled else {
+            slack = .comingSoon
+            notion = .comingSoon
+            github = .comingSoon
+            return
+        }
         slack = .checking
         if Slack.isConfigured {
             do {
@@ -68,7 +75,7 @@ struct ConnectionsView: View {
                 }
             }
 
-            Text("Illusory has no account. Tokens stay on this Mac.")
+            Text("Illusory has no account. Nothing here leaves this Mac.")
                 .font(Theme.body(11))
                 .foregroundStyle(.tertiary)
         }
@@ -112,7 +119,7 @@ struct ConnectionsView: View {
 
     private func color(for status: ConnectionsModel.Status) -> Color {
         switch status {
-        case .checking: return .secondary.opacity(0.4)
+        case .checking, .comingSoon: return .secondary.opacity(0.25)
         case .connected: return .green
         case .missing: return .secondary.opacity(0.4)
         case .failed: return .orange
@@ -122,6 +129,7 @@ struct ConnectionsView: View {
     private func detail(for status: ConnectionsModel.Status) -> String {
         switch status {
         case .checking: return "Checking…"
+        case .comingSoon: return "Coming soon"
         case .connected(let s), .missing(let s), .failed(let s): return s
         }
     }

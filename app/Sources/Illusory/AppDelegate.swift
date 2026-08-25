@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotKey: HotKey?
     private let statusItem = StatusItemController()
     private var overlay: NSPanel?
+    private let gesture = GestureState()
 
     private var pressedAt: Date?
     private var holdTimer: Timer?
@@ -22,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem.install()
+        ActivityLog.shared.start()
 
         hotKey = HotKey(keyCode: UInt32(kVK_Space), modifiers: UInt32(optionKey))
         hotKey?.onPress = { Task { @MainActor in self.keyDown() } }
@@ -57,27 +59,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // Tap: no time to look, so show the sweep just long enough to register
             // that something happened, then commit.
             showOverlay(caption: "Finishing what you started…")
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(600))
-                guard self.generation == gen else { return }
-                self.hideOverlay()
-                self.commit()
-            }
+            commit(generation: gen)
         } else {
-            hideOverlay()
-            commit()
+            commit(generation: gen)
         }
     }
 
     /// Everything Illusory does is bounded by the one rule — nothing slower than a
     /// second, nothing bigger than thirty seconds of the user's own work.
-    private func commit() {
-        // Executors land here: capture context, infer the next step, run it.
+    private func commit(generation gen: Int) {
+        guard OpenRouter.isConfigured else {
+            Log.info("OpenRouter: no key set")
+            showOverlay(caption: "No model configured.")
+            dismiss(after: .milliseconds(1400), generation: gen)
+            return
+        }
+
+        let snapshot = ContextSnapshot.full()
+        Log.info("context: \(snapshot.appName) · selection=\(snapshot.selection != nil)"
+               + " · clipboard=\(snapshot.clipboard != nil) · shot=\(snapshot.screenshot != nil)"
+               + " · history=\(snapshot.history != nil)")
+        showOverlay(caption: "Thinking…")
+
+        Task { @MainActor in
+            let started = Date()
+            do {
+                let proposal = try await Intent.propose(snapshot)
+                guard self.generation == gen else { return }
+                let elapsed = Int(Date().timeIntervalSince(started) * 1000)
+                Log.info("proposed in \(elapsed)ms: \(proposal)")
+                self.gesture.caption = proposal
+            } catch {
+                guard self.generation == gen else { return }
+                Log.info("model error: \(error.localizedDescription)")
+                self.gesture.caption = error.localizedDescription
+            }
+            self.dismiss(after: .milliseconds(2000), generation: gen)
+        }
+    }
+
+    private func dismiss(after delay: Duration, generation gen: Int) {
+        Task { @MainActor in
+            try? await Task.sleep(for: delay)
+            guard self.generation == gen else { return }
+            self.hideOverlay()
+        }
     }
 
     // MARK: - Overlay
 
     private func showOverlay(caption: String) {
+        gesture.caption = caption
         statusItem.setActive(true)
         guard overlay == nil, let screen = NSScreen.main else { return }
 
@@ -90,7 +122,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.level = .screenSaver
         panel.ignoresMouseEvents = true
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
-        panel.contentView = NSHostingView(rootView: SweepOverlay(caption: caption))
+        panel.contentView = NSHostingView(rootView: SweepOverlay(state: gesture))
         panel.setFrame(screen.frame, display: true)
         panel.orderFrontRegardless()
         overlay = panel
@@ -98,7 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Nothing Illusory does may outlive the one-second rule by much. If the
         // overlay is somehow still up after this, it is a bug, not a long task.
         watchdog?.invalidate()
-        watchdog = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: false) { _ in
+        watchdog = Timer.scheduledTimer(withTimeInterval: 12, repeats: false) { _ in
             Task { @MainActor in
                 guard self.overlay != nil else { return }
                 Log.info("overlay watchdog fired — forcing it down")
@@ -120,8 +152,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Illusory has no sign-in of its own; this only reports which of *your*
     /// workspaces it currently holds a token for.
     private static func reportConnections() async {
+        guard Integrations.enabled else {
+            Log.info("integrations: off")
+            return
+        }
         guard Slack.isConfigured else {
-            Log.info("Slack: not connected — \(Slack.SlackError.noToken.localizedDescription)")
+            Log.info("Slack: no token")
             return
         }
         do {

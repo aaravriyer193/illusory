@@ -1,9 +1,16 @@
 import AppKit
 import Carbon.HIToolbox
+import CoreGraphics
 
 /// A global hotkey that reports press *and* release, because Illusory's gesture is
-/// hold-to-preview, release-to-commit. Carbon is used deliberately: it captures the
-/// key system-wide without requiring Accessibility permission at launch.
+/// hold-to-preview, release-to-commit.
+///
+/// Carbon captures the press system-wide without needing Accessibility permission,
+/// but `kEventHotKeyReleased` is unreliable — it frequently never arrives, which
+/// silently breaks the entire hold half of the gesture. So release is detected by
+/// polling the physical key state instead, which is dependable and also needs no
+/// permission. Polling starts on press and stops the moment the key comes up, so
+/// nothing runs while the user isn't holding anything.
 final class HotKey {
     private static var registry: [UInt32: HotKey] = [:]
     private static var installed = false
@@ -11,10 +18,14 @@ final class HotKey {
 
     private var ref: EventHotKeyRef?
     private let id: UInt32
+    private let keyCode: UInt32
+    private var releasePoll: Timer?
+    private var isHeld = false
     var onPress: () -> Void = {}
     var onRelease: () -> Void = {}
 
     init?(keyCode: UInt32, modifiers: UInt32) {
+        self.keyCode = keyCode
         id = HotKey.nextID
         HotKey.nextID += 1
         HotKey.installHandlerIfNeeded()
@@ -27,8 +38,28 @@ final class HotKey {
     }
 
     deinit {
+        releasePoll?.invalidate()
         if let ref { UnregisterEventHotKey(ref) }
         HotKey.registry[id] = nil
+    }
+
+    /// Carbon may repeat the press while the key is down; only the first one counts.
+    fileprivate func handlePress() {
+        guard !isHeld else { return }
+        isHeld = true
+        onPress()
+
+        releasePoll?.invalidate()
+        releasePoll = Timer.scheduledTimer(withTimeInterval: 0.02, repeats: true) { [weak self] timer in
+            guard let self else { timer.invalidate(); return }
+            let stillDown = CGEventSource.keyState(.combinedSessionState,
+                                                   key: CGKeyCode(self.keyCode))
+            guard !stillDown else { return }
+            timer.invalidate()
+            self.releasePoll = nil
+            self.isHeld = false
+            self.onRelease()
+        }
     }
 
     private static func installHandlerIfNeeded() {
@@ -48,9 +79,7 @@ final class HotKey {
                               MemoryLayout<EventHotKeyID>.size, nil, &hkID)
             guard let hk = HotKey.registry[hkID.id] else { return noErr }
             if GetEventKind(event) == UInt32(kEventHotKeyPressed) {
-                hk.onPress()
-            } else {
-                hk.onRelease()
+                hk.handlePress()
             }
             return noErr
         }, 2, &spec, nil, nil)
