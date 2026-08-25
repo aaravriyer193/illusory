@@ -51,8 +51,8 @@ export default function Home() {
         </p>
 
         <div className="cta-row">
-          <a className="cta" href="https://github.com/aaravriyer193/illusory">
-            Get Illusory
+          <a className="cta" href="/download">
+            Download for Mac
           </a>
           <span className="cta-note">macOS · free · no account</span>
         </div>

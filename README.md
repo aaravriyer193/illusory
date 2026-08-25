@@ -1,63 +1,95 @@
 <p align="center">
-  <img src="assets/illusory-mark.svg" width="132" alt="Illusory">
+  <img src="assets/illusory-mark.svg" width="120" alt="Illusory">
 </p>
 
 <h1 align="center">Illusory</h1>
 <p align="center">Autocomplete for everything that isn't typing.</p>
 
+<p align="center">
+  <a href="https://illusory.fulmina.re">illusory.fulmina.re</a> ·
+  <a href="https://github.com/aaravriyer193/illusory/releases/latest">Download</a>
+</p>
+
 ---
 
-Press one key, anywhere on your Mac. Illusory looks at what you're doing and does
-the rest.
+You rename two files by date. You press **⌥ Space**. Illusory renames the other
+forty-eight.
 
-- Rename two files the way you like them → it renames the other forty-eight.
-- Type *"logo's attached"* in Slack → the logo gets attached.
-- Paste a mess of data → it turns into a table.
+There is no chat window and no prompt to write. It looks at what you were already
+doing — the file you just changed, the sentence you just typed, what you copied a
+moment ago — and does the next small thing.
 
-No chat window, no prompt to write. You already showed it what you wanted by doing
-the first bit yourself.
+## Install
 
-## The one rule
+1. Download **Illusory.zip** from [the latest release](https://github.com/aaravriyer193/illusory/releases/latest).
+2. Unzip it and drag **Illusory.app** into your Applications folder.
+3. Open it. It lives in your menu bar — there is no dock icon and no window.
 
-> If it takes longer than a second, it's not Illusory's job.
+The first launch asks for two permissions. Illusory cannot work without either,
+and macOS will not let it ask twice, so it is worth granting both when prompted:
 
-Latency ceiling and scope ceiling are the same ceiling. One second of compute is
-about thirty seconds of your own work, and that is the largest thing Illusory will
-ever do. It is not here to run your projects.
+| Permission | Why |
+| --- | --- |
+| **Accessibility** | To read the window, the focused field and the buttons on screen — and to type and click for you |
+| **Screen Recording** | To see what you are looking at |
 
-This is the product, not a limitation. Trust scales inversely with scope: a tool
-that does one small step is verifiable at a glance, which is why you keep using it.
+If you miss a prompt, both live in **System Settings → Privacy & Security**.
 
-## The gesture
+## Using it
 
-**Hold** to preview — Illusory reads context and shows what it is about to do.
-**Release** to commit. **Escape** to abort. The sweep animation is not decoration;
-it is the window in which you can still say no.
+Press **⌥ Space**.
 
-## No account
+- **Tap** and Illusory just goes.
+- **Hold** and it shows you exactly what it is about to do — the real command, the
+  real list of renames — and runs it when you let go.
 
-Illusory has no sign-in and no OAuth of its own. The secrets in `.env` authorise
-Illusory against *your* workspaces, and only when you choose to connect one.
+Anything destructive always waits for a hold, never a tap. While it is working the
+mark in your menu bar spins and becomes a **stop button**: one click cancels.
 
-## Running it
+### Things it does
+
+- Rename, move, copy and organise files
+- Fill in fields, finish sentences, rewrite a selection
+- Click buttons and links in any app
+- Run a shell command
+- Turn a pasted mess into a table
+
+If it isn't sure, it says *"Nothing obvious to finish"* and does nothing. That is
+on purpose: guessing wrong is worse than doing nothing.
+
+## Settings
+
+Click the mark in the menu bar → **Connections & Settings**.
+
+**Model.** *Default* is a fast hosted model and needs no setup. Choose **Ollama**
+to run everything on your own machine instead — nothing leaves your Mac at all,
+not even the screenshot. You will need [Ollama](https://ollama.com) running with a
+vision model such as `qwen2.5vl:7b`.
+
+**Connections.** Slack, Notion and GitHub. Connecting opens a normal consent page
+in your browser; the token is stored in your Mac's Keychain. Illusory has no
+account of its own and there is nothing to sign up for.
+
+**Gesture.** How long a hold has to be before it counts as a hold rather than a
+tap.
+
+## What it can see, and what it keeps
+
+Illusory only looks when you press the key. It reads the frontmost window, the
+focused field, your clipboard, what changed recently in the folder you are working
+in, and a screenshot of your screen.
+
+None of it is stored. There is no history, no account and no server belonging to
+Illusory that your context passes through — the only thing that leaves your Mac is
+one model request, and on Ollama not even that.
+
+## Building it yourself
 
 ```bash
-cd app && swift run
+./scripts/bundle.sh && open build/Illusory.app
 ```
 
-Then hold **⌥Space**. The mark appears in the menu-bar strip beside the notch.
+Needs Xcode command line tools and an `OPENROUTER_API_KEY` in `.env` (see
+`.env.example`). `scripts/release.sh` produces the signed, zipped build that ships.
 
-## Layout
-
-| Path | What |
-| --- | --- |
-| `app/` | The macOS app (SwiftUI + AppKit, agent app — no dock icon) |
-| `assets/logo_gen.py` | The mark, generated parametrically |
-| `assets/*.svg` | Emitted mark set: primary, small, mono, favicon |
-
-## Phases
-
-1. **Core** — hotkey, context capture, intent inference, executors for files, text
-   and terminal. The one-second rule enforced from day one.
-2. **Integrations** — Notion, Slack, GitHub.
-3. **Ship** — notarized build, landing page, launch.
+The website and the OAuth broker live in [`web/`](web/README.md).
