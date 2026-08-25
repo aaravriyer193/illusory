@@ -214,6 +214,8 @@ enum Agent {
                 last = try await Tools.run(step)
                 completed.append("\(step.tool): ok — \(last.prefix(80))")
                 Log.info("step ok · \(step.tool) · \(last.prefix(80))")
+                // The next step reads the screen the previous one just changed.
+                try? await Task.sleep(for: .milliseconds(160))
             } catch {
                 let reason = error.localizedDescription
                 Log.info("step failed · \(step.tool) · \(reason)")

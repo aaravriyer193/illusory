@@ -174,12 +174,12 @@ enum Tools {
 
         case "type":
             try needsInput()
-            Input.type(try need("text"))
+            await Input.type(try need("text"))
             return "Typed"
 
         case "key":
             try needsInput()
-            Input.press(try need("key"), step.args["modifiers"] as? [String] ?? [])
+            await Input.press(try need("key"), step.args["modifiers"] as? [String] ?? [])
             return "Pressed"
 
         case "click_element":
@@ -201,7 +201,7 @@ enum Tools {
             }
             Log.info("click_element '\(wanted)' -> '\(match.label)' at "
                    + "\(Int(match.centre.x)),\(Int(match.centre.y))")
-            Input.click(at: match.centre)
+            await Input.click(at: match.centre)
             return "Clicked \(match.label)"
 
         case "click_element":
@@ -223,7 +223,7 @@ enum Tools {
             }
             Log.info("click_element '\(wanted)' -> '\(match.label)' at "
                    + "\(Int(match.centre.x)),\(Int(match.centre.y))")
-            Input.click(at: match.centre)
+            await Input.click(at: match.centre)
             return "Clicked \(match.label)"
 
         case "click", "double_click", "right_click":
@@ -231,7 +231,7 @@ enum Tools {
             guard let at = step.point() else {
                 throw ToolError.missingArgument(step.tool, "x/y")
             }
-            Input.click(at: Screenshot.toScreen(at),
+            await Input.click(at: Screenshot.toScreen(at),
                         button: step.tool == "right_click" ? .right : .left,
                         count: step.tool == "double_click" ? 2 : 1)
             return "Clicked"
@@ -241,7 +241,7 @@ enum Tools {
             guard let at = step.point() else {
                 throw ToolError.missingArgument(step.tool, "x/y")
             }
-            Input.move(to: Screenshot.toScreen(at))
+            await Input.move(to: Screenshot.toScreen(at))
             return "Moved cursor"
 
         case "drag":
@@ -249,12 +249,12 @@ enum Tools {
             guard let from = step.point(), let to = step.point("to_x", "to_y") else {
                 throw ToolError.missingArgument(step.tool, "x/y/to_x/to_y")
             }
-            Input.drag(from: Screenshot.toScreen(from), to: Screenshot.toScreen(to))
+            await Input.drag(from: Screenshot.toScreen(from), to: Screenshot.toScreen(to))
             return "Dragged"
 
         case "scroll":
             try needsInput()
-            Input.scroll(dx: step.int("dx") ?? 0, dy: step.int("dy") ?? 0)
+            await Input.scroll(dx: step.int("dx") ?? 0, dy: step.int("dy") ?? 0)
             return "Scrolled"
 
         // MARK: Apps
@@ -264,6 +264,9 @@ enum Tools {
             guard NSWorkspace.shared.launchApplication(name) else {
                 throw ToolError.failed("Could not open \(name)")
             }
+            // An app that was not already running needs far longer than a settle
+            // before anything can be clicked in it.
+            try? await Task.sleep(for: .milliseconds(900))
             return "Opened \(name)"
 
         case "open_url":

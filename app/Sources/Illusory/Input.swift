@@ -4,38 +4,60 @@ import CoreGraphics
 /// Synthesised keyboard and mouse input — the part that lets Illusory drive apps
 /// that expose no scripting interface at all.
 ///
-/// All of it needs Accessibility permission. Events are posted to the HID tap so
-/// they behave exactly like real input, which also means they go wherever the
-/// focus currently is: callers are responsible for making sure that is the right
-/// place before posting anything.
+/// Everything here is paced. Posted events go onto the HID tap and are delivered
+/// as fast as they are created, but applications need real time to process them:
+/// a browser has to run its event handlers, move focus, fire JavaScript. Firing a
+/// burst of keystrokes with microsecond gaps means most of them land somewhere
+/// that isn't ready for them and are simply lost, which looks exactly like typing
+/// "not working".
+///
+/// These are async and sleep rather than blocking, because they run on the main
+/// actor and `usleep` there freezes the UI for the whole duration.
 enum Input {
+    /// Between a key going down and coming up. Real keypresses are tens of
+    /// milliseconds; apps that debounce input ignore anything much shorter.
+    static let keyHold = Duration.milliseconds(14)
+    /// Between one character and the next.
+    static let keyGap = Duration.milliseconds(18)
+    /// Between mouse down and mouse up.
+    static let clickHold = Duration.milliseconds(60)
+    /// After anything that can move focus or start navigation, before the next
+    /// step assumes the change has happened.
+    static let settle = Duration.milliseconds(350)
+
     private static var source: CGEventSource? {
         CGEventSource(stateID: .combinedSessionState)
     }
 
     // MARK: - Keyboard
 
-    /// Types text as unicode rather than as key codes, so it is layout-independent
-    /// and handles characters that have no key on the user's keyboard.
-    static func type(_ text: String) {
+    /// Types text as unicode rather than key codes, so it is layout-independent and
+    /// handles characters with no key on the user's keyboard.
+    ///
+    /// One character at a time: batching sixteen into a single event was faster but
+    /// many apps only read the first of a multi-character unicode payload, so long
+    /// strings arrived truncated.
+    static func type(_ text: String) async {
         let src = source
-        for offset in stride(from: 0, to: text.count, by: 16) {
-            let start = text.index(text.startIndex, offsetBy: offset)
-            let end = text.index(start, offsetBy: min(16, text.count - offset))
-            var units = Array(text[start..<end].utf16)
+        for character in text {
+            var units = Array(String(character).utf16)
 
-            for isDown in [true, false] {
-                guard let event = CGEvent(keyboardEventSource: src,
-                                          virtualKey: 0, keyDown: isDown) else { continue }
-                event.keyboardSetUnicodeString(stringLength: units.count, unicodeString: &units)
-                event.post(tap: .cghidEventTap)
-            }
-            usleep(1200)
+            guard let down = CGEvent(keyboardEventSource: src, virtualKey: 0, keyDown: true),
+                  let up = CGEvent(keyboardEventSource: src, virtualKey: 0, keyDown: false)
+            else { continue }
+
+            down.keyboardSetUnicodeString(stringLength: units.count, unicodeString: &units)
+            down.post(tap: .cghidEventTap)
+            try? await Task.sleep(for: keyHold)
+
+            up.keyboardSetUnicodeString(stringLength: units.count, unicodeString: &units)
+            up.post(tap: .cghidEventTap)
+            try? await Task.sleep(for: keyGap)
         }
     }
 
     /// Named keys and shortcuts, e.g. `press("return")` or `press("c", ["command"])`.
-    static func press(_ key: String, _ modifiers: [String] = []) {
+    static func press(_ key: String, _ modifiers: [String] = []) async {
         guard let code = keyCode(for: key) else {
             Log.info("input: unknown key \(key)")
             return
@@ -53,13 +75,18 @@ enum Input {
         }
 
         let src = source
-        for isDown in [true, false] {
-            guard let event = CGEvent(keyboardEventSource: src,
-                                      virtualKey: code, keyDown: isDown) else { continue }
-            event.flags = flags
-            event.post(tap: .cghidEventTap)
+        if let down = CGEvent(keyboardEventSource: src, virtualKey: code, keyDown: true) {
+            down.flags = flags
+            down.post(tap: .cghidEventTap)
         }
-        usleep(2000)
+        try? await Task.sleep(for: keyHold)
+        if let up = CGEvent(keyboardEventSource: src, virtualKey: code, keyDown: false) {
+            up.flags = flags
+            up.post(tap: .cghidEventTap)
+        }
+        // Shortcuts trigger real work — selecting, saving, navigating — so give the
+        // app time to do it before anything else is posted.
+        try? await Task.sleep(for: settle)
     }
 
     private static func keyCode(for key: String) -> CGKeyCode? {
@@ -81,25 +108,28 @@ enum Input {
 
     // MARK: - Mouse
 
-    static var cursor: CGPoint {
-        CGEvent(source: nil)?.location ?? .zero
-    }
+    static var cursor: CGPoint { CGEvent(source: nil)?.location ?? .zero }
 
-    static func move(to point: CGPoint) {
+    static func move(to point: CGPoint) async {
         CGEvent(mouseEventSource: source, mouseType: .mouseMoved,
                 mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
-        usleep(4000)
+        try? await Task.sleep(for: .milliseconds(40))
     }
 
-    static func click(at point: CGPoint? = nil, button: CGMouseButton = .left, count: Int = 1) {
+    static func click(at point: CGPoint? = nil,
+                      button: CGMouseButton = .left, count: Int = 1) async {
         let location = point ?? cursor
-        if point != nil { move(to: location) }
+        if point != nil {
+            // Move first and let hover handlers run: controls that only become
+            // clickable on hover ignore a click that arrives with the cursor.
+            await move(to: location)
+        }
 
         let down: CGEventType = button == .right ? .rightMouseDown : .leftMouseDown
         let up: CGEventType = button == .right ? .rightMouseUp : .leftMouseUp
 
         for click in 1...max(1, count) {
-            for (kind, isDown) in [(down, true), (up, false)] {
+            for kind in [down, up] {
                 guard let event = CGEvent(mouseEventSource: source, mouseType: kind,
                                           mouseCursorPosition: location, mouseButton: button)
                 else { continue }
@@ -107,37 +137,41 @@ enum Input {
                 // than two unrelated ones.
                 event.setIntegerValueField(.mouseEventClickState, value: Int64(click))
                 event.post(tap: .cghidEventTap)
-                _ = isDown
+                if kind == down { try? await Task.sleep(for: clickHold) }
             }
-            usleep(40_000)
+            if click < count { try? await Task.sleep(for: .milliseconds(70)) }
         }
+        // Focus changes, menus open, pages navigate. Nothing else should be posted
+        // until that has had a chance to happen.
+        try? await Task.sleep(for: settle)
     }
 
-    static func drag(from: CGPoint, to: CGPoint) {
-        move(to: from)
+    static func drag(from: CGPoint, to: CGPoint) async {
+        await move(to: from)
         CGEvent(mouseEventSource: source, mouseType: .leftMouseDown,
                 mouseCursorPosition: from, mouseButton: .left)?.post(tap: .cghidEventTap)
-        usleep(30_000)
+        try? await Task.sleep(for: clickHold)
 
         // Stepped rather than teleported: many drop targets only register a drag
         // once they have seen intermediate movement.
-        let steps = 18
+        let steps = 20
         for step in 1...steps {
             let progress = CGFloat(step) / CGFloat(steps)
             let point = CGPoint(x: from.x + (to.x - from.x) * progress,
                                 y: from.y + (to.y - from.y) * progress)
             CGEvent(mouseEventSource: source, mouseType: .leftMouseDragged,
                     mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
-            usleep(8000)
+            try? await Task.sleep(for: .milliseconds(12))
         }
 
         CGEvent(mouseEventSource: source, mouseType: .leftMouseUp,
                 mouseCursorPosition: to, mouseButton: .left)?.post(tap: .cghidEventTap)
+        try? await Task.sleep(for: settle)
     }
 
-    static func scroll(dx: Int = 0, dy: Int = 0) {
+    static func scroll(dx: Int = 0, dy: Int = 0) async {
         CGEvent(scrollWheelEvent2Source: source, units: .pixel, wheelCount: 2,
                 wheel1: Int32(dy), wheel2: Int32(dx), wheel3: 0)?.post(tap: .cghidEventTap)
-        usleep(8000)
+        try? await Task.sleep(for: .milliseconds(120))
     }
 }
