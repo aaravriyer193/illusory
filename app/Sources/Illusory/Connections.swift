@@ -95,9 +95,7 @@ struct ConnectionsView: View {
                 Task { await model.refresh() }
             }
 
-            Text(provider == .openRouter
-                 ? "Fast hosted model, chosen for you. Needs an OpenRouter key."
-                 : provider.detail)
+            Text(provider.detail)
                 .font(Theme.body(11)).foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
 

@@ -11,14 +11,14 @@ enum Provider: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .openRouter: return "OpenRouter"
+        case .openRouter: return "Default"
         case .ollama:     return "Ollama (local)"
         }
     }
 
     var detail: String {
         switch self {
-        case .openRouter: return "Fast, needs a key"
+        case .openRouter: return "Fast, hosted, ready to go"
         case .ollama:     return "Private, needs Ollama running"
         }
     }
