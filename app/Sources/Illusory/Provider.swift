@@ -27,7 +27,7 @@ enum Provider: String, CaseIterable, Identifiable {
         switch self {
         // Must be vision-capable: every gesture sends a screenshot, and a
         // text-only model would silently discard it.
-        case .openRouter: return "deepseek/deepseek-v4-flash-vision-exp"
+        case .openRouter: return "xiaomi/mimo-v2.5"
         case .ollama:     return "qwen2.5vl:7b"
         }
     }

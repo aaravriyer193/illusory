@@ -8,9 +8,13 @@ import Foundation
 /// cannot finish inside those, the honest answer is that this was never a job for
 /// Illusory.
 enum Agent {
-    static let maxSteps = 8
+    static let maxSteps = 12
     static let maxRepairs = 3
-    static let deadline: TimeInterval = 30
+    /// How many times Illusory may look again and carry on. One pass can only ever
+    /// act on what was true before it started — clicking a field, for instance,
+    /// changes what the next step should be.
+    static let maxRounds = 4
+    static let deadline: TimeInterval = 45
 
     static let nothing = "Nothing obvious to finish."
 
@@ -73,6 +77,11 @@ enum Agent {
         TOOLS — each step is {"tool": name, ...args}:
         \(Tools.catalogue)
 
+        Give every step the task needs, not just the first one. Filling a field is \
+        click_element then key{cmd+a} then type — three steps, one plan. Illusory \
+        will look at the screen again after your steps run and you can add more \
+        then, so never stop early on purpose, and never stop after a single click.
+
         Reply with JSON only, no fences, no prose:
         {"summary": "<imperative sentence, max 12 words>",
          "confidence": <0.0-1.0>,
@@ -126,15 +135,77 @@ enum Agent {
     static func execute(_ plan: Plan,
                         context snapshot: ContextSnapshot,
                         progress: @MainActor (String) -> Void) async -> String {
+        var completedAcrossRounds: [String] = []
+        var result = "Done."
+        let deadlineAt = Date().addingTimeInterval(deadline)
+        var current = plan
+
+        for round in 0..<maxRounds {
+            let outcome = await runOnce(current, context: snapshot,
+                                        deadlineAt: deadlineAt, progress: progress)
+            completedAcrossRounds += outcome.log
+            result = outcome.result
+            if outcome.stopped { return result }
+            guard Date() < deadlineAt else { return result }
+
+            // Look again. The screen has changed, and whether anything remains can
+            // only be answered against what is true now.
+            progress("Checking…")
+            let fresh = await ContextSnapshot.full()
+            guard let next = try? await continuation(fresh, goal: plan.summary,
+                                                     done: completedAcrossRounds),
+                  !next.isEmpty else {
+                Log.info("agent: finished after \(round + 1) round(s)")
+                return result
+            }
+            Log.info("agent: round \(round + 2) — \(next.map(\.tool).joined(separator: ", "))")
+            current = Plan(summary: plan.summary, confidence: plan.confidence,
+                           basis: plan.basis, steps: next)
+        }
+        return result
+    }
+
+    /// Asks whether the goal is actually met, and what remains if not.
+    private static func continuation(_ snapshot: ContextSnapshot,
+                                     goal: String, done: [String]) async throws -> [Step] {
+        let prompt = """
+        \(snapshot.promptDescription)
+
+        ---
+
+        The goal was: \(goal)
+
+        Steps carried out so far:
+        \(done.joined(separator: "\n"))
+
+        Look at the screen as it is NOW. If the goal is fully achieved, return an \
+        empty steps array — that is the expected answer and you should give it \
+        readily. If something still genuinely remains, return only the remaining \
+        steps. Never repeat work already done.
+
+        Reply with JSON only: {"steps": [{"tool": "...", ...}]}
+        """
+        let raw = try await Model.complete(system: system, user: prompt,
+                                           imageBase64JPEG: snapshot.screenshot,
+                                           maxTokens: 700)
+        return parse(raw).steps
+    }
+
+    /// One pass through a queue of steps, repairing failures as it goes.
+    @MainActor
+    private static func runOnce(_ plan: Plan,
+                                context snapshot: ContextSnapshot,
+                                deadlineAt: Date,
+                                progress: @MainActor (String) -> Void)
+        async -> (result: String, log: [String], stopped: Bool) {
         var queue = plan.steps
         var completed: [String] = []
         var repairs = 0
         var last = "Done."
-        let started = Date()
 
         while !queue.isEmpty {
-            guard Date().timeIntervalSince(started) < deadline else {
-                return "Stopped — took too long."
+            guard Date() < deadlineAt else {
+                return ("Stopped — took too long.", completed, true)
             }
             let step = queue.removeFirst()
             progress(step.preview)
@@ -149,7 +220,7 @@ enum Agent {
                 completed.append("\(step.tool): FAILED — \(reason)")
 
                 guard repairs < maxRepairs else {
-                    return "Gave up: \(reason)"
+                    return ("Gave up: \(reason)", completed, true)
                 }
                 repairs += 1
                 progress("That didn't work — trying another way…")
@@ -157,15 +228,17 @@ enum Agent {
                 do {
                     let fixed = try await repair(snapshot, failed: step,
                                                  reason: reason, done: completed)
-                    guard !fixed.isEmpty else { return "Couldn't do it: \(reason)" }
+                    guard !fixed.isEmpty else {
+                        return ("Couldn't do it: \(reason)", completed, true)
+                    }
                     Log.info("repair \(repairs): \(fixed.map(\.tool).joined(separator: ", "))")
                     queue = fixed + queue
                 } catch {
-                    return "Couldn't do it: \(reason)"
+                    return ("Couldn't do it: \(reason)", completed, true)
                 }
             }
         }
-        return last
+        return (last, completed, false)
     }
 
     /// Asks for a correction, given what was attempted and how it failed.
