@@ -25,7 +25,9 @@ enum Provider: String, CaseIterable, Identifiable {
 
     var defaultModel: String {
         switch self {
-        case .openRouter: return "z-ai/glm-4.6"
+        // Must be vision-capable: every gesture sends a screenshot, and a
+        // text-only model would silently discard it.
+        case .openRouter: return "deepseek/deepseek-v4-flash-vision-exp"
         case .ollama:     return "qwen2.5vl:7b"
         }
     }
