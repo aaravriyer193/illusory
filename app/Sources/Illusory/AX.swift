@@ -168,6 +168,7 @@ extension AX {
         var found: [UIElement] = []
         var seen = Set<String>()
         var stack: [(AXUIElement, Int)] = [(root, 0)]
+        var roles: [String] = []
         // Hard node budget: some pages have tens of thousands of nodes and the
         // gesture has a latency ceiling that matters more than completeness.
         var visited = 0
@@ -176,7 +177,10 @@ extension AX {
             visited += 1
             if depth > maxDepth { continue }
 
-            if let role = string(node, kAXRoleAttribute as String),
+            let nodeRole = string(node, kAXRoleAttribute as String)
+            if let nodeRole { roles.append(nodeRole) }
+
+            if let role = nodeRole,
                clickableRoles.contains(role),
                let frame = rect(node), frame.width > 4, frame.height > 4,
                let label = describe(node) {
@@ -191,9 +195,14 @@ extension AX {
                 stack.append(contentsOf: children.prefix(120).reversed().map { ($0, depth + 1) })
             }
         }
-        if found.isEmpty {
-            Log.info("ax: no clickable controls found for pid \(pid) — "
-                   + "trusted=\(isTrusted), visited=\(visited)")
+        if found.count < 12 {
+            // Too few almost always means the tree isn't built, not that the
+            // window is empty — so report what roles were actually reachable.
+            let census = Dictionary(grouping: roles, by: { $0 }).mapValues(\.count)
+                .sorted { $0.value > $1.value }.prefix(8)
+                .map { "\($0.key)x\($0.value)" }.joined(separator: " ")
+            Log.info("ax: only \(found.count) controls for pid \(pid) · "
+                   + "trusted=\(isTrusted) visited=\(visited) · roles: \(census)")
         }
         return found
     }

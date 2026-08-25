@@ -23,12 +23,21 @@ final class ActivityLog {
     private var lastApp: String?
 
     func start() {
+        // Whatever is already frontmost at launch never fires an activation.
+        if let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier {
+            AX.enableWebContent(pid: pid)
+        }
+
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification,
             object: nil, queue: .main
         ) { note in
             let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
             guard let name = app?.localizedName else { return }
+            // Ask Chromium/Electron apps to build their accessibility tree the
+            // moment they come forward. Doing it at gesture time is too late:
+            // the tree isn't ready yet and the walk sees only browser chrome.
+            if let pid = app?.processIdentifier { AX.enableWebContent(pid: pid) }
             Task { @MainActor in ActivityLog.shared.record("switched to \(name)") }
         }
 

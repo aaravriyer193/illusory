@@ -83,6 +83,10 @@ struct ContextSnapshot {
             url = AX.string(window, "AXURL") ?? AX.search(window, for: "AXURL")
         }
 
+        // The control list is what stops the model inventing labels and guessing
+        // pixels, so it has to be gathered here rather than only at click time.
+        clickables = AX.clickables(pid: pid)
+
         guard let focused = AX.element(axApp, kAXFocusedUIElementAttribute as String) else { return }
         focusRole = AX.string(focused, kAXRoleAttribute as String)
         focusDescription = AX.string(focused, kAXRoleDescriptionAttribute as String)
