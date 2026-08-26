@@ -96,12 +96,10 @@ enum ModelError: LocalizedError {
 
 /// One call, whichever provider is selected.
 enum Model {
-    static var isConfigured: Bool {
-        switch Settings.provider {
-        case .openRouter: return Env["OPENROUTER_API_KEY"] != nil
-        case .ollama:     return true
-        }
-    }
+    /// A shipped build has no `.env`, so it has no key — it goes through the
+    /// site's proxy instead, which always exists. There is nothing for the user
+    /// to configure either way.
+    static var isConfigured: Bool { true }
 
     static func complete(system: String, user: String,
                          imageBase64JPEG: String? = nil,
@@ -118,8 +116,11 @@ enum Model {
 
     private static func openRouter(_ system: String, _ user: String,
                                    _ image: String?, _ maxTokens: Int) async throws -> String {
+        // With a key in .env, talk to OpenRouter directly — that is the developer
+        // path, and it keeps one fewer hop in the latency budget. Without one,
+        // which is every shipped build, go through the site.
         guard let key = Env["OPENROUTER_API_KEY"] else {
-            throw ModelError.notConfigured("No OpenRouter key set.")
+            return try await proxy(system, user, image, maxTokens)
         }
 
         var request = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!)
@@ -162,6 +163,41 @@ enum Model {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw ModelError.empty }
         return trimmed
+    }
+
+    // MARK: - Site proxy
+
+    /// Illusory's own endpoint, which holds the key. A distributed app cannot keep
+    /// a secret, so it is not given one.
+    private static func proxy(_ system: String, _ user: String,
+                              _ image: String?, _ maxTokens: Int) async throws -> String {
+        let site = Env["ILLUSORY_SITE"] ?? "https://illusory.fulmina.re"
+        guard let url = URL(string: "\(site)/api/model") else {
+            throw ModelError.notConfigured("Bad site URL.")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 40
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        var body: [String: Any] = ["system": system, "user": user, "maxTokens": maxTokens]
+        if let image { body["image"] = image }
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+
+        guard (200..<300).contains(code) else {
+            let detail = (json?["error"] as? String)
+                ?? String((String(data: data, encoding: .utf8) ?? "").prefix(160))
+            throw ModelError.http(code, detail)
+        }
+        guard let text = json?["content"] as? String, !text.isEmpty else {
+            throw ModelError.empty
+        }
+        return text
     }
 
     // MARK: - Ollama
